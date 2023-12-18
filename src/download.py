@@ -14,7 +14,7 @@ def download_glosat() -> None:
 
     # define paths and create folder
     url = "https://zenodo.org/records/5363457/files/datasets.zip"
-    target = f"{Path(__file__).parent.absolute()}/../data/GloSAT/raw/"
+    target = f"{Path(__file__).parent.absolute()}/../data/GloSAT/"
     file = f"{target}/datasets.zip"
     os.makedirs(target, exist_ok=True)
 
