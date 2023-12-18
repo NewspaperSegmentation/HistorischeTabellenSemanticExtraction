@@ -1,4 +1,11 @@
+from pathlib import Path
+from pprint import pprint
 from typing import List
+
+import numpy as np
+from bs4 import BeautifulSoup
+
+from src.utils.utils import convert_coords, get_bbox
 
 
 def extract_annotation(file: str) -> List[dict]:
@@ -15,6 +22,50 @@ def extract_annotation(file: str) -> List[dict]:
 
     return tables
 
+
+def extract_glosat_annotation(file: str, mode: str = 'maximum') -> List[dict]:
+    """
+    extracts annotation data from file
+    :param file: path to file
+    :param mode: mode for bounding box extraction options are 'maximum' and 'corners'
+    'maximum': creates a bounding box including all points annotated
+    'corners': creates a bounding box by connecting the corners of the annotation
+    :return:
+    """
+    tables = [{'coords': None, 'cells': None, 'columns': None, 'rows': None}]
+
+    with open(file, 'r', encoding='utf-8') as file:
+        xml_content = file.read()
+
+    # Parse the XML content
+    soup = BeautifulSoup(xml_content, 'xml')
+
+    page = soup.find('Page')
+    size = (int(page['imageHeight']), int(page['imageWidth']))
+
+    # Find all TextLine elements and extract the Baseline points
+    for table in soup.find_all('TableRegion'):
+        t = {'coords': table.find('Coords')['points'], 'cells': [], 'columns': [], 'rows': []}
+        for cell in table.find_all('TableCell'):
+            # get points and corners of cell
+            points = convert_coords(cell.find('Coords')['points'])
+            corners = [int(x) for x in cell.find('CornerPts').text.split()] if mode == 'corners' else None
+            points = np.flip(points, 1)
+
+            # get bounding box
+            bbox = get_bbox(points, corners)
+
+            # add to dictionary
+            t['cells'].append(bbox)
+
+        tables.append(t)
+
+
+    # extract info
+    # calc cell, col and row coords relative to table
+    # coords like torch indexing
+
+    return tables
 
 def preprocess(image: str, tables: List[dict]) -> None:
     """
@@ -77,5 +128,10 @@ def main(folder: str, dataset_type: str):
 
 
 
-    # row bounding boxs
+        # row bounding boxs
 
+
+
+if __name__ == '__main__':
+    tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Coarse/Transkribus/1.xml', 'corners')
+    pprint(tables)
