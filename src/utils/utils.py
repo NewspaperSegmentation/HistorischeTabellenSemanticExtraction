@@ -24,8 +24,12 @@ def get_bbox(points: np.ndarray, corners: Union[None, List[int]] = None) -> Tupl
     if corners:
         points = points[corners]
 
-    x_max, x_min = points[:, 0].max(), points[:, 0].min()
-    y_max, y_min = points[:, 1].max(), points[:, 1].min()
+    #x_max, x_min = points[:, 0].max(), points[:, 0].min()
+    #y_max, y_min = points[:, 1].max(), points[:, 1].min()
+    #x, y were turned around
+    y_max, y_min = points[:, 0].max(), points[:, 0].min()
+    x_max, x_min = points[:, 1].max(), points[:, 1].min()
+
 
     return x_min, y_min, x_max, y_max
 

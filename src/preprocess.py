@@ -4,8 +4,10 @@ from typing import List
 
 import numpy as np
 from bs4 import BeautifulSoup
+from matplotlib import pyplot as plt
 
-from src.utils.utils import convert_coords, get_bbox
+from utils.utils import convert_coords, get_bbox
+from show_annotations import pltbox
 
 
 def extract_annotation(file: str) -> List[dict]:
@@ -46,6 +48,8 @@ def extract_glosat_annotation(file: str, mode: str = 'maximum') -> List[dict]:
     # Find all TextLine elements and extract the Baseline points
     for table in soup.find_all('TableRegion'):
         t = {'coords': table.find('Coords')['points'], 'cells': [], 'columns': [], 'rows': []}
+        i=0
+        currentrow = []
         for cell in table.find_all('TableCell'):
             # get points and corners of cell
             points = convert_coords(cell.find('Coords')['points'])
@@ -58,8 +62,23 @@ def extract_glosat_annotation(file: str, mode: str = 'maximum') -> List[dict]:
             # add to dictionary
             t['cells'].append(bbox)
 
-        tables.append(t)
+            if cell.get('rowSpan')!=None:
+            #credit cell rausnehmen
+                if int(cell['row']) <= i:
+                    currentrow.extend(points.tolist())
+                    i = max(int(cell['row']) + int(cell['rowSpan']) -1,i)
+                else:
+                    bbox = get_bbox(np.array(currentrow))
+                    t['rows'].append(bbox)
+                    currentrow.clear()
+                    i+=1
+                    currentrow.extend(points.tolist())
+        if currentrow:
+            bbox = get_bbox(np.array(currentrow))
+            t['rows'].append(bbox)
 
+        tables.append(t)
+    del tables[0]
 
     # extract info
     # calc cell, col and row coords relative to table
@@ -133,5 +152,8 @@ def main(folder: str, dataset_type: str):
 
 
 if __name__ == '__main__':
-    tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Coarse/Transkribus/1.xml', 'corners')
+    tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/7.xml', 'corners')
     pprint(tables)
+    img = plt.imread(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/7.jpg')
+    print(tables)
+    pltbox(img, tables[0]['rows'])
