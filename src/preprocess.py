@@ -103,7 +103,7 @@ def preprocess(image: str, tables: List[dict]) -> None:
     # TODO: define preprocessing process
 
     # create new folder for image files
-
+    #this way of splitting wont work for different folder sructure, probably need to change it for our dataset
     splitname = image.split('JPEGImages/')[1]
     target = f"{Path(__file__).parent.absolute()}/../data/preprocessed/"+splitname[:-4]+"/"
     os.makedirs(target, exist_ok=True)
@@ -157,7 +157,7 @@ def preprocess(image: str, tables: List[dict]) -> None:
     tablefile.close()
 
 
-def main(folder: str, dataset_type: str):
+def main(datafolder: str, imgfolder: str, dataset_type: str):
     """
     takes the folder of a dataset and preprocesses it. Save preprocessed images and files with bounding boxes
     table.pt: file with bounding boxes of tables format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
@@ -170,32 +170,47 @@ def main(folder: str, dataset_type: str):
     :return:
     """
     # TODO: does preprocessing over data in folder
-    pass
+    print("Processing Folder, this may take a little while!")
 
-    for file in folder:
-        # find out if Glosat and our dataformat is the same
-        # write individual or one function to extract information
-        tables = extract_annotation(file) # maybe two one for every dataset
+    files = os.listdir(datafolder)
+    maxnum = max([int(x[:-4])for x in files])
+    tables = [None] * (maxnum+1)
+    # find out if Glosat and our dataformat is the same
+    # write individual or one function to extract information
+    #tables = extract_annotation(file) # maybe two one for every dataset
+    if dataset_type.lower() == 'glosat':
+        for file in files: 
+            table = extract_glosat_annotation(datafolder+file)
+            splitname = file[:-4]
+            tables[int(splitname)] = table
+    elif dataset_type.lower() == 'ours':
+        for file in files:
+            table = extract_annotation(datafolder+file)
+            splitname = file[:-4]
+            tables[int(splitname)] = table
+    else:
+        raise Exception('No annotation script for this dataset!')
 
-        # cut out tables
-
+    images = os.listdir(imgfolder)
+    for img in images:
+        splitname = img[:-4]
         # preprocess images
-        preprocess(file, tables)
-
-
-
-        # row bounding boxs
+        preprocess(imgfolder+img, tables[int(splitname)])
+    
 
 
 
 if __name__ == '__main__':
-    tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/4.xml', 'corners', table_relative=False)
+    #tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/4.xml', 'corners', table_relative=False)
     #pprint(tables)
-    img = plt.imread(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/4.jpg')
+    #img = plt.imread(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/4.jpg')
     #print(tables)
     #pltbox(img, tables[0]['rows'])
-    pltbox(img,[x for t in tables for x in t['rows']] )
-    tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/4.xml', 'corners')
+    #pltbox(img,[x for t in tables for x in t['rows']] )
+    #tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/4.xml', 'corners')
     #print(img.shape)
-    preprocess(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/4.jpg', tables)
+    #preprocess(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/4.jpg', tables)
+    main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/', imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/', dataset_type='glosat')
     plot(f'{Path(__file__).parent.absolute()}/../data/preprocessed/4/')
+    plot(f'{Path(__file__).parent.absolute()}/../data/preprocessed/20/')
+    plot(f'{Path(__file__).parent.absolute()}/../data/preprocessed/162/')
