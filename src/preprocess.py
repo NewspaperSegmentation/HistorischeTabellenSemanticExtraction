@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from matplotlib import pyplot as plt
 
 from utils.utils import convert_coords, get_bbox
-from show_annotations import pltbox
+from show_annotations import pltbox, plot
 
 
 def extract_annotation(file: str) -> List[dict]:
@@ -106,7 +106,6 @@ def preprocess(image: str, tables: List[dict]) -> None:
 
     splitname = image.split('JPEGImages/')[1]
     target = f"{Path(__file__).parent.absolute()}/../data/preprocessed/"+splitname[:-4]+"/"
-    print(target)
     os.makedirs(target, exist_ok=True)
     img = Image.open(image)
 
@@ -121,8 +120,6 @@ def preprocess(image: str, tables: List[dict]) -> None:
     #torch.save(image, impath)
     img.save(f"{target}/"+splitname[:-4]+".jpg")
 
-    # save tabel bounding boxs (naming: image_file_name _ tables . pt)
-
     # save text bounding boxs (naming: image_file_name _ texts . pt)
     #not added yet since not available for glosat
 
@@ -136,8 +133,6 @@ def preprocess(image: str, tables: List[dict]) -> None:
         coord = get_bbox(convert_coords(tab['coords']))
         tablelist.append(coord)
         tableimg = img.crop((coord))
-        pltbox(tableimg, tab['rows'])
-        pltbox(tableimg, tab['cells'])
         tablepath = f"{target}/"+splitname[:-4]+"_table_"+str(idx)+".pt"
         #torch.save(tableimg,tablepath)
         tableimg.save(f"{target}/"+splitname[:-4]+"_table_"+str(idx)+".jpg")
@@ -155,6 +150,7 @@ def preprocess(image: str, tables: List[dict]) -> None:
         rowfile = open(rowpath, "w")
         rowfile.write('\n'.join('{} {} {} {}'.format(cell[0],cell[1], cell[2], cell[3]) for cell in tab['rows']))
         rowfile.close()
+    # save tabel bounding boxs (naming: image_file_name _ tables . pt)
     tablepath = f"{target}/"+splitname[:-4]+"_tables.txt"
     tablefile = open(tablepath, "w")
     tablefile.write('\n'.join('{} {} {} {}'.format(cell[0],cell[1], cell[2], cell[3]) for cell in tablelist))
@@ -197,7 +193,9 @@ if __name__ == '__main__':
     #pprint(tables)
     img = plt.imread(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/4.jpg')
     #print(tables)
-    pltbox(img, tables[0]['rows'])
+    #pltbox(img, tables[0]['rows'])
+    pltbox(img,[x for t in tables for x in t['rows']] )
     tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/4.xml', 'corners')
     #print(img.shape)
     preprocess(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/4.jpg', tables)
+    plot(f'{Path(__file__).parent.absolute()}/../data/preprocessed/4/')
