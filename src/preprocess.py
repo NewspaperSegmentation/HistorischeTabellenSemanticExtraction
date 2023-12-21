@@ -1,3 +1,7 @@
+"""
+script for extracting annotations and preprocessing images
+"""
+
 import glob
 import os
 from pathlib import Path
@@ -13,22 +17,7 @@ from utils.utils import convert_coords, get_bbox
 from show_annotations import plot
 
 
-def extract_annotation(file: str) -> List[dict]:
-    """
-    extracts annotation data from file
-    :param file: path to file
-    :return:
-    """
-    tables = [{'coords': None, 'cells': None, 'columns': None, 'rows': None}]
-
-    # extract info
-    # calc cell, col and row coords relative to table
-    # coords like torch indexing
-
-    return tables
-
-
-def extract_glosat_annotation(file: str, mode: str = 'maximum', table_relative: bool = True) -> List[dict]:
+def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = True) -> List[dict]:
     """
     extracts annotation data from transkribus xml file
     :param file: path to file
@@ -203,7 +192,7 @@ def main(datafolder: str, imgfolder: str, targetfolder: str):
     images = [f"{imgfolder}/{x}.jpg" for x in file_names]
 
     for file_name, file, img in tqdm(zip(file_names, files, images), desc='preprocessing', total=len(files)):
-        table = extract_glosat_annotation(file)
+        table = extract_annotation(file)
         preprocess(img, table, targetfolder, file_name)
 
 
