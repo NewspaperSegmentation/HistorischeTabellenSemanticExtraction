@@ -65,7 +65,7 @@ def plot(folder: str):
                 coldata = [tuple([int(l) for l in line.split()]) for line in f]
             collist.append(coldata)
 
-    pltbox(plt.imread(folder + files[0]), tablelist, title='tables')
+    pltbox(plt.imread(folder + sorted(files)[0]), tablelist, title='tables')
 
     for idx, img in enumerate(imglist):
         pltbox(img, celllist[idx], title='cells')
