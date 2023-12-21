@@ -17,7 +17,7 @@ from utils.utils import convert_coords, get_bbox
 from show_annotations import plot
 
 
-def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = True) -> List[dict]:
+def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = True) -> (List[dict], List[dict]):
     """
     extracts annotation data from transkribus xml file
     :param file: path to file
@@ -28,6 +28,7 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
     :return:
     """
     tables = []
+    textregions = []
 
     with open(file, 'r', encoding='utf-8') as file:
         xml_content = file.read()
@@ -39,6 +40,10 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
     size = (int(page['imageHeight']), int(page['imageWidth']))
 
     # Find all TextLine elements and extract the Baseline points
+    for textline in soup.find_all('TextRegion'):
+        text = {'coords': get_bbox(convert_coords(textline.find('Coords')['points'])) }
+        textregions.append(text)
+
     for table in soup.find_all('TableRegion'):
         t = {'coords': table.find('Coords')['points'], 'cells': [], 'columns': [], 'rows': []}
         i = 0  # row counter
@@ -112,10 +117,10 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
 
         tables.append(t)
 
-    return tables
+    return tables, textregions
 
 
-def preprocess(image: str, tables: List[dict], target: str, file_name: str) -> None:
+def preprocess(image: str, tables: List[dict], target: str, file_name: str, text: List[dict]=None) -> None:
     """
     does preprocessing to the image and cuts outs tables. Then save image and all cut out rois as different files
     :param image: path to image
@@ -138,6 +143,15 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str) -> N
     img.save(f"{target}/" + file_name + ".jpg")
 
     # save text bounding boxs (naming: image_file_name _ texts . pt)
+    textlist= []
+    if text:
+        for idx, region in enumerate(text):
+            coord = region['coords']
+            textlist.append(coord)
+        textpath = f"{target}/" + file_name + "_textregions" + ".txt"
+        textfile = open(textpath, "w")
+        textfile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in textlist))
+        textfile.close()
     # not added yet since not available for glosat
 
     # save one file for every roi
@@ -192,8 +206,8 @@ def main(datafolder: str, imgfolder: str, targetfolder: str):
     images = [f"{imgfolder}/{x}.jpg" for x in file_names]
 
     for file_name, file, img in tqdm(zip(file_names, files, images), desc='preprocessing', total=len(files)):
-        table = extract_annotation(file)
-        preprocess(img, table, targetfolder, file_name)
+        table, text = extract_annotation(file)
+        preprocess(img, table, targetfolder, file_name,text)
 
 
 if __name__ == '__main__':
@@ -205,11 +219,11 @@ if __name__ == '__main__':
              imgfolder=f'{Path(__file__).parent.absolute()}/../data/Tables/TableDataset/',
              targetfolder=f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/')
 
-        plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_132903/')
+        plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_141527/')
 
     if glosat:
-        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
-             imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
-             targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
+        #main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
+        #     imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
+        #     targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
 
         plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/8/')

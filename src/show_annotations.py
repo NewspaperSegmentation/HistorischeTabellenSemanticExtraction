@@ -8,7 +8,7 @@ from pathlib import Path
 import os
 
 
-def pltbox(image, boundingboxes: list, title: Optional[str] = None):
+def pltbox(image, boundingboxes: list, title: Optional[str] = None, textregions: Optional[list] = None):
     """
     plots bounding boxes in image
     """
@@ -23,6 +23,16 @@ def pltbox(image, boundingboxes: list, title: Optional[str] = None):
         ylist = [ymin, ymax, ymax, ymin, ymin]
         plt.plot(xlist, ylist)
 
+    if textregions:
+        for idx, textbox in enumerate(textregions):
+            ymin = textbox[1]
+            xmin = textbox[0]
+            ymax = textbox[3]
+            xmax = textbox[2]
+            xlist = [xmin, xmin, xmax, xmax, xmin]
+            ylist = [ymin, ymax, ymax, ymin, ymin]
+            plt.plot(xlist, ylist, 'g')
+
     if title is not None:
         plt.title(title)
     plt.show()
@@ -34,6 +44,8 @@ def plot(folder: str):
     :param folder: path to folder of preprocessed
     :return:
     """
+    textlist = []
+    has_textregion = False
     tablelist = []
     celllist = []
     rowlist = []
@@ -42,6 +54,10 @@ def plot(folder: str):
     files = os.listdir(folder)
     # for root, dirs, files in os.walk(folder):
     for filename in sorted(files):
+        if "textregions" in filename:
+            with open(folder + filename, 'r') as f:
+                textlist = [tuple([int(l) for l in line.split()]) for line in f]
+            has_textregion = True
         if "table" in filename and filename.endswith('.jpg'):
             img = plt.imread(folder + filename)
             imglist.append(img)
@@ -66,6 +82,9 @@ def plot(folder: str):
             collist.append(coldata)
 
     pltbox(plt.imread(folder + sorted(files)[0]), tablelist, title='tables')
+
+    if has_textregion:
+        pltbox(plt.imread(folder + sorted(files)[0]), tablelist, title='tables and textregions', textregions=textlist)
 
     for idx, img in enumerate(imglist):
         pltbox(img, celllist[idx], title='cells')
