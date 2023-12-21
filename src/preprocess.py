@@ -1,7 +1,8 @@
+import glob
 import os
 from pathlib import Path
 from typing import List
-from PIL import Image
+from PIL import Image, ImageOps
 
 import numpy as np
 from scipy.cluster.hierarchy import DisjointSet
@@ -125,28 +126,27 @@ def extract_glosat_annotation(file: str, mode: str = 'maximum', table_relative: 
     return tables
 
 
-def preprocess(image: str, tables: List[dict]) -> None:
+def preprocess(image: str, tables: List[dict], target: str, file_name: str) -> None:
     """
     does preprocessing to the image and cuts outs tables. Then save image and all cut out rois as different files
     :param image: path to image
     :param tables: extracted annotations
+    :param target: folder to save the results in
+    :param file_name: name of image
     :return:
     """
-    # TODO: define preprocessing process
 
     # create new folder for image files
     # this way of splitting won't work for different folder structure, probably need to change it for our dataset
-    splitname = image.split('JPEGImages/')[1]
-    target = f"{Path(__file__).parent.absolute()}/../data/preprocessed/" + splitname[:-4] + "/"
+    target = f"{target}/{file_name}/"
     os.makedirs(target, exist_ok=True)
-    img = Image.open(image)
 
     # preprocessing image
-
-    # cut out rois
+    img = Image.open(image)
+    img = ImageOps.exif_transpose(img)  # turns image in right orientation
 
     # save image (naming: image_file_name . pt)
-    img.save(f"{target}/" + splitname[:-4] + ".jpg")
+    img.save(f"{target}/" + file_name + ".jpg")
 
     # save text bounding boxs (naming: image_file_name _ texts . pt)
     # not added yet since not available for glosat
@@ -158,34 +158,34 @@ def preprocess(image: str, tables: List[dict]) -> None:
         coord = get_bbox(convert_coords(tab['coords']))
         tablelist.append(coord)
         tableimg = img.crop((coord))
-        tableimg.save(f"{target}/" + splitname[:-4] + "_table_" + str(idx) + ".jpg")
+        tableimg.save(f"{target}/" + file_name + "_table_" + str(idx) + ".jpg")
 
         # cell bounding boxs (naming: image_file_name _ cell _ idx . pt)
-        cellpath = f"{target}/" + splitname[:-4] + "_cell_" + str(idx) + ".txt"
+        cellpath = f"{target}/" + file_name + "_cell_" + str(idx) + ".txt"
         cellfile = open(cellpath, "w")
         cellfile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in tab['cells']))
         cellfile.close()
 
         # column bounding boxs (naming: image_file_name _ col _ idx . pt)
-        colpath = f"{target}/" + splitname[:-4] + "_col_" + str(idx) + ".txt"
+        colpath = f"{target}/" + file_name + "_col_" + str(idx) + ".txt"
         colfile = open(colpath, "w")
         colfile.write('\n'.join('{} {} {} {}'.format(col[0], col[1], col[2], col[3]) for col in tab['columns']))
         colfile.close()
 
         # row bounding boxs (naming: image_file_name _ row _ idx . pt)
-        rowpath = f"{target}/" + splitname[:-4] + "_row_" + str(idx) + ".txt"
+        rowpath = f"{target}/" + file_name + "_row_" + str(idx) + ".txt"
         rowfile = open(rowpath, "w")
         rowfile.write('\n'.join('{} {} {} {}'.format(row[0], row[1], row[2], row[3]) for row in tab['rows']))
         rowfile.close()
 
     # save tabel bounding boxs (naming: image_file_name _ tables . pt)
-    tablepath = f"{target}/" + splitname[:-4] + "_tables.txt"
+    tablepath = f"{target}/" + file_name + "_tables.txt"
     tablefile = open(tablepath, "w")
     tablefile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in tablelist))
     tablefile.close()
 
 
-def main(datafolder: str, imgfolder: str, dataset_type: str):
+def main(datafolder: str, imgfolder: str, targetfolder: str):
     """
     takes the folder of a dataset and preprocesses it. Save preprocessed images and files with bounding boxes
     table.pt: file with bounding boxes of tables format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
@@ -193,42 +193,34 @@ def main(datafolder: str, imgfolder: str, dataset_type: str):
     cell.pt: file with bounding boxes of cell format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
     column.pt: file with bounding boxes of column format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
     row.pt: file with bounding boxes of row format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
-    :param folder:
-    :param dataset_type:
+    :param targetfolder: path for saving the images
     :return:
     """
-    # TODO: does preprocessing over data in folder
-    print("Processing Folder, this may take a little while!")
+    print("Processing folder, this may take a little while!")
 
-    files = os.listdir(datafolder)
-    maxnum = max([int(x[:-4]) for x in files])
-    tables = [None] * (maxnum + 1)
-    # find out if Glosat and our dataformat is the same
-    # write individual or one function to extract information
-    # tables = extract_annotation(file) # maybe two one for every dataset
-    if dataset_type.lower() == 'glosat':
-        for file in tqdm(files, desc='preprocessing', total=len(files)):
-            table = extract_glosat_annotation(datafolder + file)
-            splitname = file[:-4]
-            tables[int(splitname)] = table
-    elif dataset_type.lower() == 'ours':
-        for file in tqdm(files, desc='preprocessing', total=len(files)):
-            table = extract_annotation(datafolder + file)
-            splitname = file[:-4]
-            tables[int(splitname)] = table
-    else:
-        raise Exception('No annotation script for this dataset!')
+    files = [x for x in glob.glob(f"{datafolder}/*.xml")]
+    file_names = [os.path.splitext(os.path.basename(path))[0] for path in files]
+    images = [f"{imgfolder}/{x}.jpg" for x in file_names]
 
-    images = os.listdir(imgfolder)
-    for img in tqdm(images, desc='saving', total=len(images)):
-        splitname = img[:-4]
-        # preprocess images
-        preprocess(imgfolder + img, tables[int(splitname)])
+    for file_name, file, img in tqdm(zip(file_names, files, images), desc='preprocessing', total=len(files)):
+        table = extract_glosat_annotation(file)
+        preprocess(img, table, targetfolder, file_name)
 
 
 if __name__ == '__main__':
-    main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
-         imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
-         dataset_type='glosat')
+    ours = True
+    glosat = True
 
-    plot(f'{Path(__file__).parent.absolute()}/../data/preprocessed/8/')
+    if ours:
+        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/Tables/TableDataset/',
+             imgfolder=f'{Path(__file__).parent.absolute()}/../data/Tables/TableDataset/',
+             targetfolder=f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/')
+
+        plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_132903/')
+
+    if glosat:
+        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
+             imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
+             targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
+
+        plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/8/')
