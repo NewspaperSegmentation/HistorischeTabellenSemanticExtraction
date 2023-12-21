@@ -1,16 +1,15 @@
 import os
 from pathlib import Path
-from pprint import pprint
 from typing import List
 from PIL import Image
-import torch
 
 import numpy as np
+from scipy.cluster.hierarchy import DisjointSet
 from bs4 import BeautifulSoup
-from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from utils.utils import convert_coords, get_bbox
-from show_annotations import pltbox, plot
+from show_annotations import plot
 
 
 def extract_annotation(file: str) -> List[dict]:
@@ -28,7 +27,7 @@ def extract_annotation(file: str) -> List[dict]:
     return tables
 
 
-def extract_glosat_annotation(file: str, mode: str = 'maximum', table_relative :bool =True) -> List[dict]:
+def extract_glosat_annotation(file: str, mode: str = 'maximum', table_relative: bool = True) -> List[dict]:
     """
     extracts annotation data from transkribus xml file
     :param file: path to file
@@ -38,7 +37,7 @@ def extract_glosat_annotation(file: str, mode: str = 'maximum', table_relative :
     :param table_relative: if True, bounding boxes for cell and row are calculated relative to table position
     :return:
     """
-    tables = [{'coords': None, 'cells': None, 'columns': None, 'rows': None}]
+    tables = []
 
     with open(file, 'r', encoding='utf-8') as file:
         xml_content = file.read()
@@ -52,46 +51,79 @@ def extract_glosat_annotation(file: str, mode: str = 'maximum', table_relative :
     # Find all TextLine elements and extract the Baseline points
     for table in soup.find_all('TableRegion'):
         t = {'coords': table.find('Coords')['points'], 'cells': [], 'columns': [], 'rows': []}
-        i=0
-        currentrow = []
+        i = 0  # row counter
+        currentrow = []  # list of points in current row
+
+        columns = {}    # dictionary of columns and their points
+        rows = {}       # dictionary of rows and their points
+        col_joins = []  # list of join operations for columns
+        row_joins = []  # list of join operations for rows
+
         if table_relative:
             coord = get_bbox(convert_coords(t['coords']))
         else:
-            coord =None
+            coord = None
+
+        # iterate over cells in table
         for cell in table.find_all('TableCell'):
             # get points and corners of cell
             points = convert_coords(cell.find('Coords')['points'])
+
+            # uses corner points of cell if mode is 'corners'
             corners = [int(x) for x in cell.find('CornerPts').text.split()] if mode == 'corners' else None
-            #points = np.flip(points, 1) #why np.flip? turned off for now since this way coord order is inconsistent between table coords and cell/row coords
 
             # get bounding box
-            bbox = get_bbox(points, corners,coord)
+            bbox = get_bbox(points, corners, coord)
 
             # add to dictionary
             t['cells'].append(bbox)
 
-            if cell.get('rowSpan')!=None: #credit cell rausnehmen
-                if int(cell['row']) <= i:
-                    currentrow.extend(points.tolist())
-                    i = max(int(cell['row']) + int(cell['rowSpan']) -1,i)
+            # calc rows
+            if cell.get('rowSpan') != None:  # credit cell rausnehmen
+
+                # add row number to dict
+                if int(cell['row']) in rows.keys():
+                    rows[int(cell['row'])].extend(points.tolist())
                 else:
-                    bbox = get_bbox(np.array(currentrow),tablebbox=coord)
-                    t['rows'].append(bbox)
-                    currentrow.clear()
-                    i+=1
-                    currentrow.extend(points.tolist())
-        if currentrow:
-            bbox = get_bbox(np.array(currentrow),tablebbox=coord)
-            t['rows'].append(bbox)
+                    rows[int(cell['row'])] = points.tolist()
+
+                # when cell over multiple rows create a join operation
+                if int(cell['rowSpan']) > 1:
+                    row_joins.extend([(int(cell['row']), int(cell['row']) + s) for s in range(1, int(cell['rowSpan']))])
+
+                # add col number to dict
+                if int(cell['col']) in columns.keys():
+                    columns[int(cell['col'])].extend(points.tolist())
+                else:
+                    columns[int(cell['col'])] = points.tolist()
+
+                # when cell over multiple columns create a join operation
+                if int(cell['colSpan']) > 1:
+                    col_joins.extend([(int(cell['col']), int(cell['col']) + s) for s in range(1, int(cell['colSpan']))])
+
+        # join overlapping rows
+        row_set = DisjointSet(rows.keys())
+        for join in row_joins:
+            if join[0] in rows.keys() and join[1] in rows.keys():
+                row_set.merge(*join)
+
+
+        rows = [[point for key in lst for point in rows[key]] for lst in row_set.subsets()]
+        t['rows'] = [get_bbox(np.array(col), tablebbox=coord) for col in rows]
+
+        # join overlapping columns
+        col_set = DisjointSet(columns.keys())
+        for join in col_joins:
+            if join[0] in columns.keys() and join[1] in columns.keys():
+                col_set.merge(*join)
+
+        columns = [[point for key in lst for point in columns[key]] for lst in col_set.subsets()]
+        t['columns'] = [get_bbox(np.array(col), tablebbox=coord) for col in columns]
 
         tables.append(t)
-    del tables[0]
-
-    # extract info
-    # calc cell, col and row coords relative to table
-    # coords like torch indexing
 
     return tables
+
 
 def preprocess(image: str, tables: List[dict]) -> None:
     """
@@ -103,9 +135,9 @@ def preprocess(image: str, tables: List[dict]) -> None:
     # TODO: define preprocessing process
 
     # create new folder for image files
-    #this way of splitting wont work for different folder sructure, probably need to change it for our dataset
+    # this way of splitting won't work for different folder structure, probably need to change it for our dataset
     splitname = image.split('JPEGImages/')[1]
-    target = f"{Path(__file__).parent.absolute()}/../data/preprocessed/"+splitname[:-4]+"/"
+    target = f"{Path(__file__).parent.absolute()}/../data/preprocessed/" + splitname[:-4] + "/"
     os.makedirs(target, exist_ok=True)
     img = Image.open(image)
 
@@ -114,46 +146,42 @@ def preprocess(image: str, tables: List[dict]) -> None:
     # cut out rois
 
     # save image (naming: image_file_name . pt)
-
-    impath = f"{target}/"+splitname[:-4]+".pt"
-    #img.save(impath)
-    #torch.save(image, impath)
-    img.save(f"{target}/"+splitname[:-4]+".jpg")
+    img.save(f"{target}/" + splitname[:-4] + ".jpg")
 
     # save text bounding boxs (naming: image_file_name _ texts . pt)
-    #not added yet since not available for glosat
+    # not added yet since not available for glosat
 
     # save one file for every roi
     tablelist = []
     for idx, tab in enumerate(tables):
-        pass
-
         # cut out table form image save as (naming: image_file_name _ table _ idx . pt)
-    
         coord = get_bbox(convert_coords(tab['coords']))
         tablelist.append(coord)
         tableimg = img.crop((coord))
-        tablepath = f"{target}/"+splitname[:-4]+"_table_"+str(idx)+".pt"
-        #torch.save(tableimg,tablepath)
-        tableimg.save(f"{target}/"+splitname[:-4]+"_table_"+str(idx)+".jpg")
+        tableimg.save(f"{target}/" + splitname[:-4] + "_table_" + str(idx) + ".jpg")
 
         # cell bounding boxs (naming: image_file_name _ cell _ idx . pt)
-        cellpath = f"{target}/"+splitname[:-4]+"_cell_"+str(idx)+".txt"
-        #torch.save()
+        cellpath = f"{target}/" + splitname[:-4] + "_cell_" + str(idx) + ".txt"
         cellfile = open(cellpath, "w")
-        cellfile.write('\n'.join('{} {} {} {}'.format(cell[0],cell[1], cell[2], cell[3]) for cell in tab['cells']))
+        cellfile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in tab['cells']))
         cellfile.close()
+
         # column bounding boxs (naming: image_file_name _ col _ idx . pt)
+        colpath = f"{target}/" + splitname[:-4] + "_col_" + str(idx) + ".txt"
+        colfile = open(colpath, "w")
+        colfile.write('\n'.join('{} {} {} {}'.format(col[0], col[1], col[2], col[3]) for col in tab['columns']))
+        colfile.close()
 
         # row bounding boxs (naming: image_file_name _ row _ idx . pt)
-        rowpath = f"{target}/"+splitname[:-4]+"_row_"+str(idx)+".txt"
+        rowpath = f"{target}/" + splitname[:-4] + "_row_" + str(idx) + ".txt"
         rowfile = open(rowpath, "w")
-        rowfile.write('\n'.join('{} {} {} {}'.format(cell[0],cell[1], cell[2], cell[3]) for cell in tab['rows']))
+        rowfile.write('\n'.join('{} {} {} {}'.format(row[0], row[1], row[2], row[3]) for row in tab['rows']))
         rowfile.close()
+
     # save tabel bounding boxs (naming: image_file_name _ tables . pt)
-    tablepath = f"{target}/"+splitname[:-4]+"_tables.txt"
+    tablepath = f"{target}/" + splitname[:-4] + "_tables.txt"
     tablefile = open(tablepath, "w")
-    tablefile.write('\n'.join('{} {} {} {}'.format(cell[0],cell[1], cell[2], cell[3]) for cell in tablelist))
+    tablefile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in tablelist))
     tablefile.close()
 
 
@@ -173,44 +201,34 @@ def main(datafolder: str, imgfolder: str, dataset_type: str):
     print("Processing Folder, this may take a little while!")
 
     files = os.listdir(datafolder)
-    maxnum = max([int(x[:-4])for x in files])
-    tables = [None] * (maxnum+1)
+    maxnum = max([int(x[:-4]) for x in files])
+    tables = [None] * (maxnum + 1)
     # find out if Glosat and our dataformat is the same
     # write individual or one function to extract information
-    #tables = extract_annotation(file) # maybe two one for every dataset
+    # tables = extract_annotation(file) # maybe two one for every dataset
     if dataset_type.lower() == 'glosat':
-        for file in files: 
-            table = extract_glosat_annotation(datafolder+file)
+        for file in tqdm(files, desc='preprocessing', total=len(files)):
+            table = extract_glosat_annotation(datafolder + file)
             splitname = file[:-4]
             tables[int(splitname)] = table
     elif dataset_type.lower() == 'ours':
-        for file in files:
-            table = extract_annotation(datafolder+file)
+        for file in tqdm(files, desc='preprocessing', total=len(files)):
+            table = extract_annotation(datafolder + file)
             splitname = file[:-4]
             tables[int(splitname)] = table
     else:
         raise Exception('No annotation script for this dataset!')
 
     images = os.listdir(imgfolder)
-    for img in images:
+    for img in tqdm(images, desc='saving', total=len(images)):
         splitname = img[:-4]
         # preprocess images
-        preprocess(imgfolder+img, tables[int(splitname)])
-    
-
+        preprocess(imgfolder + img, tables[int(splitname)])
 
 
 if __name__ == '__main__':
-    #tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/4.xml', 'corners', table_relative=False)
-    #pprint(tables)
-    #img = plt.imread(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/4.jpg')
-    #print(tables)
-    #pltbox(img, tables[0]['rows'])
-    #pltbox(img,[x for t in tables for x in t['rows']] )
-    #tables = extract_glosat_annotation(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/4.xml', 'corners')
-    #print(img.shape)
-    #preprocess(f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/4.jpg', tables)
-    main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/', imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/', dataset_type='glosat')
-    plot(f'{Path(__file__).parent.absolute()}/../data/preprocessed/4/')
-    plot(f'{Path(__file__).parent.absolute()}/../data/preprocessed/20/')
-    plot(f'{Path(__file__).parent.absolute()}/../data/preprocessed/162/')
+    main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
+         imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
+         dataset_type='glosat')
+
+    plot(f'{Path(__file__).parent.absolute()}/../data/preprocessed/8/')
