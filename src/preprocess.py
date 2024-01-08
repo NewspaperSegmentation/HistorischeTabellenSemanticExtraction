@@ -47,7 +47,7 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
     
 
     for table in soup.find_all('TableRegion'):
-        t = {'coords': table.find('Coords')['points'], 'cells': [], 'columns': [], 'rows': []}
+        t = {'coords': get_bbox(convert_coords(table.find('Coords')['points'])), 'cells': [], 'columns': [], 'rows': []}
         i = 0  # row counter
         currentrow = []  # list of points in current row
         maxcol = 0
@@ -57,13 +57,21 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
         col_joins = []  # list of join operations for columns
         row_joins = []  # list of join operations for rows
 
-        if table_relative:
-            coord = get_bbox(convert_coords(t['coords']))
-        else:
-            coord = None
-
+        
         for cell in table.find_all('TableCell'):
             maxcol = max(maxcol, int(cell['col']))
+        firstcell = table.find('TableCell')
+        
+        if cell.get('rowSpan') != None and int(firstcell['colSpan'])==maxcol+1 and int(firstcell['row'])==0:
+            coord1 = t['coords']
+            #print(t['coords'])
+            coord2 = get_bbox(convert_coords(firstcell.find('Coords')['points']))
+            t['coords'] = (coord1[0], coord2[3], coord1[2], coord1[3])
+            #print(t['coords'], 'h')
+        if table_relative:
+            coord = t['coords']
+        else:
+            coord = None
 
         # iterate over cells in table
         for cell in table.find_all('TableCell'):
@@ -77,7 +85,8 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
             bbox = get_bbox(points, corners, coord)
 
             # add to dictionary
-            t['cells'].append(bbox)
+            if cell.get('rowSpan') != None and not (int(cell['colSpan'])==maxcol+1 and int(cell['row'])==0):
+                t['cells'].append(bbox)
 
             # calc rows
             if cell.get('rowSpan') != None and not (int(cell['colSpan'])==maxcol+1 and int(cell['row'])==0):  # credit cell und GloSAT Text Headers rausnehmen
@@ -122,7 +131,8 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
         columns = [[point for key in lst for point in columns[key]] for lst in col_set.subsets()]
         t['columns'] = [get_bbox(np.array(col), tablebbox=coord) for col in columns]
 
-        tables.append(t)
+        if t['columns'] and t['rows']:
+            tables.append(t)
 
     return tables, textregions
 
@@ -164,7 +174,7 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
     tablelist = []
     for idx, tab in enumerate(tables):
         # cut out table form image save as (naming: image_file_name _ table _ idx . pt)
-        coord = get_bbox(convert_coords(tab['coords']))
+        coord = tab['coords']
         tablelist.append(coord)
         tableimg = img.crop((coord))
         tableimg.save(f"{target}/" + file_name + "_table_" + str(idx) + ".jpg")
@@ -233,4 +243,4 @@ if __name__ == '__main__':
         #     targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
 
         plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/8/')
-        plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/13/')
+        plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/')
