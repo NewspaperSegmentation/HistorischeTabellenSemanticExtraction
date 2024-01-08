@@ -123,4 +123,4 @@ def plot(folder: str, save_as: Optional[str] = None):
 
 if __name__ == '__main__':
     # plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_132903/', save_as='OurExampleIMG_20190821_132903')
-    plot(f'{Path(__file__).parent.absolute()}/../data/GLoSAT/preprocessed/13/', save_as='GloSATExample13')
+    plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/13/', save_as='GloSATExample13')

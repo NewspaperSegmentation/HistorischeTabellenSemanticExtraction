@@ -44,10 +44,13 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
         text = {'coords': get_bbox(convert_coords(textline.find('Coords')['points'])) }
         textregions.append(text)
 
+    
+
     for table in soup.find_all('TableRegion'):
         t = {'coords': table.find('Coords')['points'], 'cells': [], 'columns': [], 'rows': []}
         i = 0  # row counter
         currentrow = []  # list of points in current row
+        maxcol = 0
 
         columns = {}    # dictionary of columns and their points
         rows = {}       # dictionary of rows and their points
@@ -58,6 +61,9 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
             coord = get_bbox(convert_coords(t['coords']))
         else:
             coord = None
+
+        for cell in table.find_all('TableCell'):
+            maxcol = max(maxcol, int(cell['col']))
 
         # iterate over cells in table
         for cell in table.find_all('TableCell'):
@@ -74,7 +80,7 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
             t['cells'].append(bbox)
 
             # calc rows
-            if cell.get('rowSpan') != None:  # credit cell rausnehmen
+            if cell.get('rowSpan') != None and not (int(cell['colSpan'])==maxcol+1 and int(cell['row'])==0):  # credit cell und GloSAT Text Headers rausnehmen
 
                 # add row number to dict
                 if int(cell['row']) in rows.keys():
@@ -90,10 +96,11 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
                 if int(cell['col']) in columns.keys():
                     columns[int(cell['col'])].extend(points.tolist())
                 else:
+                    #if not (int(cell['colSpan'])==maxcol+1 and int(cell['row'])==0):
                     columns[int(cell['col'])] = points.tolist()
 
                 # when cell over multiple columns create a join operation
-                if int(cell['colSpan']) > 1:
+                if int(cell['colSpan']) > 1: # and not (int(cell['colSpan'])==maxcol+1 and int(cell['row'])==0):
                     col_joins.extend([(int(cell['col']), int(cell['col']) + s) for s in range(1, int(cell['colSpan']))])
 
         # join overlapping rows
@@ -142,7 +149,7 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
     # save image (naming: image_file_name . pt)
     img.save(f"{target}/" + file_name + ".jpg")
 
-    # save text bounding boxs (naming: image_file_name _ texts . pt)
+    # save text bounding boxes (naming: image_file_name _ texts . pt)
     textlist= []
     if text:
         for idx, region in enumerate(text):
@@ -152,7 +159,6 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
         textfile = open(textpath, "w")
         textfile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in textlist))
         textfile.close()
-    # not added yet since not available for glosat
 
     # save one file for every roi
     tablelist = []
@@ -181,7 +187,7 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
         rowfile.write('\n'.join('{} {} {} {}'.format(row[0], row[1], row[2], row[3]) for row in tab['rows']))
         rowfile.close()
 
-    # save tabel bounding boxs (naming: image_file_name _ tables . pt)
+    # save table bounding boxs (naming: image_file_name _ tables . pt)
     tablepath = f"{target}/" + file_name + "_tables.txt"
     tablefile = open(tablepath, "w")
     tablefile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in tablelist))
@@ -227,3 +233,4 @@ if __name__ == '__main__':
         #     targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
 
         plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/8/')
+        plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/13/')
