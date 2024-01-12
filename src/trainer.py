@@ -4,7 +4,6 @@ from tqdm import tqdm
 
 import numpy as np
 import torch
-from torch.nn import MSELoss
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -146,8 +145,7 @@ if __name__ == '__main__':
     traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed', 'tables')
     validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed', 'tables')
     optimizer = AdamW
-    loss_fn = MSELoss()
     name = 'test2'
 
-    trainer = Trainer(model, traindataset, validdataset, optimizer, loss_fn, name)
+    trainer = Trainer(model, traindataset, validdataset, optimizer, name)
     trainer.train(1)
