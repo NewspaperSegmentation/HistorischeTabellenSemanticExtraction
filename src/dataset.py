@@ -12,9 +12,9 @@ class dataset(Dataset):
             self.data = list(glob.glob(f"{path}/*/*_table_*"))
         self.objective = objective
 
-    def __getitem__(self, index) -> Any:
+    def __getitem__(self, index) -> (torch.Tensor, torch.Tensor):
         #return super().__getitem__(index)
-        return torch.randn(3, 1600, 1000), torch.randint(0, 1000, (11, 4))
+        return torch.randn(3, 1600, 1000), torch.rand((11, 4))
         if self.objective=="tables":
             imgnum = self.data[index].split(os.sep)[-1]
             img = torch.load(f"{self.data[index]}/{imgnum}.jpg")
