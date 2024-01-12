@@ -227,7 +227,7 @@ def main(datafolder: str, imgfolder: str, targetfolder: str):
 
 
 if __name__ == '__main__':
-    ours = True
+    ours = False
     glosat = True
 
     if ours:
@@ -242,5 +242,5 @@ if __name__ == '__main__':
         #     imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
         #     targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
 
-        plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/8/')
+        #plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/8/')
         plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/')
