@@ -9,6 +9,7 @@ from typing import List
 
 import torch
 from PIL import Image, ImageOps
+import matplotlib.pyplot as plt
 
 import numpy as np
 from scipy.cluster.hierarchy import DisjointSet
@@ -223,8 +224,10 @@ def main(datafolder: str, imgfolder: str, targetfolder: str):
     images = [f"{imgfolder}/{x}.jpg" for x in file_names]
 
     for file_name, file, img in tqdm(zip(file_names, files, images), desc='preprocessing', total=len(files)):
-        table, text = extract_annotation(file)
-        preprocess(img, table, targetfolder, file_name,text)
+        # check for strange files
+        if plt.imread(img).ndim == 3:
+            table, text = extract_annotation(file)
+            preprocess(img, table, targetfolder, file_name,text)
 
 
 if __name__ == '__main__':
@@ -241,6 +244,10 @@ if __name__ == '__main__':
     if glosat:
         main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
              imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
+             targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
+
+        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Test/Fine/Transkribus/',
+             imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Test/JPEGImages/',
              targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
 
         plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/')
