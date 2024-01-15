@@ -1,3 +1,4 @@
+import glob
 import os
 from pathlib import Path
 from tqdm import tqdm
@@ -12,6 +13,7 @@ import torchvision
 from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights
 
 from src.customdataset import CustomDataset
+from src.utils.utils import show_prediction
 
 LR = 0.002
 
@@ -31,7 +33,7 @@ class Trainer:
         print(f"using {self.device}")
 
         self.model = model.to(self.device)
-        self.trainloader = DataLoader(traindataset, batch_size=1, shuffle=True, num_workers=0)
+        self.trainloader = DataLoader(traindataset, batch_size=1, shuffle=False, num_workers=0)
         self.testloader = DataLoader(testdataset, batch_size=1, shuffle=False, num_workers=0)
         self.optimizer = optimizer(self.model.parameters(), lr=LR)
 
@@ -43,6 +45,8 @@ class Trainer:
         train_log_dir = f'{Path(__file__).parent.absolute()}/../logs/runs/{self.name}'
         print(f"{train_log_dir=}")
         self.writer = SummaryWriter(train_log_dir)
+
+        self.example_image, self.example_target = testdataset[0]
 
     def save(self, name: str = ''):
         """
@@ -72,18 +76,13 @@ class Trainer:
         train one epoch
         :return:
         """
-        for img, target in tqdm(self.trainloader):
-            img.to(self.device)
-            # target.to(self.device)
-
-            d = {}
-            boxes = target[0]
-            boxes[:, 2:4] = boxes[:, 0:2] + boxes[:, 2:4]
-            d['boxes'] = boxes
-            d['labels'] = torch.zeros(11, dtype=torch.int64)
+        for img, target in tqdm(self.trainloader, desc='training'):
+            img = img.to(self.device)
+            target['boxes'] = target['boxes'][0].to(self.device)
+            target['labels'] = target['labels'][0].to(self.device)
 
             self.optimizer.zero_grad()
-            output = model([img[0]], [d])
+            output = model([img[0]], [target])
             loss = sum(v for v in output.values())
             loss.backward()
             self.optimizer.step()
@@ -110,10 +109,12 @@ class Trainer:
         """
         loss, loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg = [], [], [], [], []
 
-        for img, target in self.testloader:
-            img.to(self.device)
-            target.to(self.device)
-            output = self.model(img, target)
+        for img, target in tqdm(self.testloader, desc='validation'):
+            img = img.to(self.device)
+            target['boxes'] = target['boxes'][0].to(self.device)
+            target['labels'] = target['labels'][0].to(self.device)
+
+            output = self.model([img[0]], [target])
 
             loss.append(sum(v for v in output.values()).cpu().detach())
             loss_classifier.append(output['loss_classifier'].detach().cpu().item())
@@ -137,15 +138,23 @@ class Trainer:
                                global_step=self.step)
         self.writer.flush()
 
+        self.model.eval()
+        pred = self.model([self.example_image.to(self.device)])
+        result = show_prediction(self.example_image, pred[0]['boxes'].detach().cpu(), self.example_target)
+        self.writer.add_image("Valid/example", result, global_step=self.step)
+
+        model = self.model.train()
         return meanloss
 
 
 if __name__ == '__main__':
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
-    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed', 'tables')
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed', 'tables')
+    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'tables')
+    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'tables')
+    print(f"{len(traindataset)=}")
+    print(f"{len(validdataset)=}")
     optimizer = AdamW
-    name = 'test2'
+    name = 'test7'
 
     trainer = Trainer(model, traindataset, validdataset, optimizer, name)
-    trainer.train(1)
+    trainer.train(100)

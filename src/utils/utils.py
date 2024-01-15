@@ -2,11 +2,26 @@
 utility functions
 """
 
-
 from typing import Tuple, Union, List
 
 import numpy as np
+import torch
 
+from torchvision.utils import draw_bounding_boxes
+
+
+def show_prediction(image, pred, target=None):
+    _, y, x = image.shape
+    boxes = [x for x in pred]
+    if target:
+        boxes.extend([box * torch.tensor([x, y, x, y]).float() for box in target['boxes']])
+
+    colors = ["red"] * len(pred)
+    colors.extend(["green"] * len(target['boxes']))
+
+    result = draw_bounding_boxes((image * 256).to(torch.uint8), torch.stack(boxes), colors=colors, width=5)
+
+    return result
 
 def convert_coords(string: str):
     """
