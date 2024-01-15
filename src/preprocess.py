@@ -6,11 +6,14 @@ import glob
 import os
 from pathlib import Path
 from typing import List
+
+import torch
 from PIL import Image, ImageOps
 
 import numpy as np
 from scipy.cluster.hierarchy import DisjointSet
 from bs4 import BeautifulSoup
+from torchvision import transforms
 from tqdm import tqdm
 
 from utils.utils import convert_coords, get_bbox
@@ -37,7 +40,6 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
     soup = BeautifulSoup(xml_content, 'xml')
 
     page = soup.find('Page')
-    size = (int(page['imageHeight']), int(page['imageWidth']))
 
     # Find all TextLine elements and extract the Baseline points
     for textline in soup.find_all('TextRegion'):
@@ -118,7 +120,6 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
             if join[0] in rows.keys() and join[1] in rows.keys():
                 row_set.merge(*join)
 
-
         rows = [[point for key in lst for point in rows[key]] for lst in row_set.subsets()]
         t['rows'] = [get_bbox(np.array(col), tablebbox=coord) for col in rows]
 
@@ -146,6 +147,8 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
     :param file_name: name of image
     :return:
     """
+    # create function to convert PIL Image to torch Tensor
+    to_tensor = transforms.PILToTensor()
 
     # create new folder for image files
     # this way of splitting won't work for different folder structure, probably need to change it for our dataset
@@ -156,52 +159,50 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
     img = Image.open(image)
     img = ImageOps.exif_transpose(img)  # turns image in right orientation
 
-    # save image (naming: image_file_name . pt)
+    # save image as jpg and pt
     img.save(f"{target}/" + file_name + ".jpg")
-
-    # save text bounding boxes (naming: image_file_name _ texts . pt)
-    textlist= []
-    if text:
-        for idx, region in enumerate(text):
-            coord = region['coords']
-            textlist.append(coord)
-        textpath = f"{target}/" + file_name + "_textregions" + ".txt"
-        textfile = open(textpath, "w")
-        textfile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in textlist))
-        textfile.close()
+    torch.save(to_tensor(img), f"{target}/" + file_name + ".pt")
 
     # save one file for every roi
     tablelist = []
+    img_x, img_y = img.size
     for idx, tab in enumerate(tables):
-        # cut out table form image save as (naming: image_file_name _ table _ idx . pt)
+        # get table coords
         coord = tab['coords']
         tablelist.append(coord)
+
+        # crop table from image
         tableimg = img.crop((coord))
+        tab_x, tab_y = tableimg.size
+
+        # save image of table
+        torch.save(to_tensor(tableimg), f"{target}/" + file_name + "_table_" + str(idx) + ".pt")
         tableimg.save(f"{target}/" + file_name + "_table_" + str(idx) + ".jpg")
 
         # cell bounding boxs (naming: image_file_name _ cell _ idx . pt)
-        cellpath = f"{target}/" + file_name + "_cell_" + str(idx) + ".txt"
-        cellfile = open(cellpath, "w")
-        cellfile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in tab['cells']))
-        cellfile.close()
+        cells = torch.tensor([[cell[0] / tab_x, cell[1] / tab_y, cell[2] / tab_x, cell[3] / tab_y] for cell in tab['cells']])
+        torch.save(cells, f"{target}/" + file_name + "_cell_" + str(idx) + ".pt")
 
         # column bounding boxs (naming: image_file_name _ col _ idx . pt)
-        colpath = f"{target}/" + file_name + "_col_" + str(idx) + ".txt"
-        colfile = open(colpath, "w")
-        colfile.write('\n'.join('{} {} {} {}'.format(col[0], col[1], col[2], col[3]) for col in tab['columns']))
-        colfile.close()
+        columns = torch.tensor([[cell[0] / tab_x, cell[1] / tab_y, cell[2] / tab_x, cell[3] / tab_y] for cell in tab['columns']])
+        torch.save(columns, f"{target}/" + file_name + "_col_" + str(idx) + ".pt")
 
         # row bounding boxs (naming: image_file_name _ row _ idx . pt)
-        rowpath = f"{target}/" + file_name + "_row_" + str(idx) + ".txt"
-        rowfile = open(rowpath, "w")
-        rowfile.write('\n'.join('{} {} {} {}'.format(row[0], row[1], row[2], row[3]) for row in tab['rows']))
-        rowfile.close()
+        rows = torch.tensor([[cell[0] / tab_x, cell[1] / tab_y, cell[2] / tab_x, cell[3] / tab_y] for cell in tab['rows']])
+        torch.save(rows, f"{target}/" + file_name + "_row_" + str(idx) + ".pt")
 
     # save table bounding boxs (naming: image_file_name _ tables . pt)
-    tablepath = f"{target}/" + file_name + "_tables.txt"
-    tablefile = open(tablepath, "w")
-    tablefile.write('\n'.join('{} {} {} {}'.format(cell[0], cell[1], cell[2], cell[3]) for cell in tablelist))
-    tablefile.close()
+    table = torch.tensor([[cell[0] / img_x, cell[1] / img_y, cell[2] / img_x, cell[3] / img_y] for cell in tablelist])
+    torch.save(table, f"{target}/" + file_name + "_tables.pt")
+
+    # save text bounding boxes (naming: image_file_name _ texts . pt)
+    textlist = []
+    if text:
+        for idx, region in enumerate(text):
+            textlist.append(region['coords'])
+
+        texts = torch.tensor([[cell[0] / img_x, cell[1] / img_y, cell[2] / img_x, cell[3] / img_y] for cell in textlist])
+        torch.save(texts, f"{target}/" + file_name + "_textregions" + ".pt")
 
 
 def main(datafolder: str, imgfolder: str, targetfolder: str):
@@ -238,9 +239,8 @@ if __name__ == '__main__':
         plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_141527/')
 
     if glosat:
-        #main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
-        #     imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
-        #     targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
+        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
+             imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
+             targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
 
-        #plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/8/')
         plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/')

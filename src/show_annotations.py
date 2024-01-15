@@ -3,6 +3,7 @@ script to demostarte targets for model
 """
 from typing import Optional, List, Tuple
 
+import torch
 from matplotlib import pyplot as plt
 from pathlib import Path
 import os
@@ -21,14 +22,15 @@ def pltbox(image, boundingboxes: List[Tuple[int, int, int, int]], title: Optiona
     """
     # plot image
     plt.imshow(image)
+    y, x, _ = image.shape
 
     # add bboxes
     for box in boundingboxes:
         # with bounding box x being height and y being width (if np.flip in extract_glosat_annotation)
-        ymin = box[1]
-        xmin = box[0]
-        ymax = box[3]
-        xmax = box[2]
+        ymin = box[1] * y
+        xmin = box[0] * x
+        ymax = box[3] * y
+        xmax = box[2] * x
         xlist = [xmin, xmin, xmax, xmax, xmin]
         ylist = [ymin, ymax, ymax, ymin, ymin]
         plt.plot(xlist, ylist)
@@ -36,10 +38,10 @@ def pltbox(image, boundingboxes: List[Tuple[int, int, int, int]], title: Optiona
     # add textregions if existing
     if textregions:
         for idx, textbox in enumerate(textregions):
-            ymin = textbox[1]
-            xmin = textbox[0]
-            ymax = textbox[3]
-            xmax = textbox[2]
+            ymin = textbox[1] * y
+            xmin = textbox[0] * x
+            ymax = textbox[3] * y
+            xmax = textbox[2] * x
             xlist = [xmin, xmin, xmax, xmax, xmin]
             ylist = [ymin, ymax, ymax, ymin, ymin]
             plt.plot(xlist, ylist, 'g')
@@ -79,32 +81,23 @@ def plot(folder: str, save_as: Optional[str] = None):
     files = os.listdir(folder)
     for filename in sorted(files):
         if "textregions" in filename:
-            with open(folder + filename, 'r') as f:
-                textlist = [tuple([int(l) for l in line.split()]) for line in f]
+            textlist = torch.load(folder + filename)
             has_textregion = True
 
         if "table" in filename and filename.endswith('.jpg'):
-            img = plt.imread(folder + filename)
-            imglist.append(img)
+            imglist.append(plt.imread(folder + filename))
 
-        if "table" in filename and filename.endswith('.txt'):
-            with open(folder + filename, 'r') as f:
-                tablelist = [tuple([int(l) for l in line.split()]) for line in f]
+        if "table" in filename and filename.endswith('.pt'):
+            tablelist = torch.load(folder + filename)
 
-        if "cell" in filename:
-            with open(folder + filename, 'r') as f:
-                celldata = [tuple([int(l) for l in line.split()]) for line in f]
-            celllist.append(celldata)
+        if "cell" in filename and filename.endswith('.pt'):
+            celllist.append(torch.load(folder + filename))
 
-        if "row" in filename:
-            with open(folder + filename, 'r') as f:
-                rowdata = [tuple([int(l) for l in line.split()]) for line in f]
-            rowlist.append(rowdata)
+        if "row" in filename and filename.endswith('.pt'):
+            rowlist.append(torch.load(folder + filename))
 
-        if "col" in filename:
-            with open(folder + filename, 'r') as f:
-                coldata = [tuple([int(l) for l in line.split()]) for line in f]
-            collist.append(coldata)
+        if "col" in filename and filename.endswith('.pt'):
+            collist.append(torch.load(folder + filename))
 
     # plot tables
     pltbox(plt.imread(folder + sorted(files)[0]), tablelist, title='tables', save_as=save_as)
@@ -123,4 +116,4 @@ def plot(folder: str, save_as: Optional[str] = None):
 
 if __name__ == '__main__':
     # plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_132903/', save_as='OurExampleIMG_20190821_132903')
-    plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/13/', save_as='GloSATExample13')
+    plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/', save_as='GloSATExample4')
