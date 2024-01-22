@@ -3,6 +3,7 @@ script to demostarte targets for model
 """
 from typing import Optional, List, Tuple
 
+import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from pathlib import Path
@@ -22,15 +23,14 @@ def pltbox(image, boundingboxes: List[Tuple[int, int, int, int]], title: Optiona
     """
     # plot image
     plt.imshow(image)
-    y, x, _ = image.shape
 
     # add bboxes
     for box in boundingboxes:
         # with bounding box x being height and y being width (if np.flip in extract_glosat_annotation)
-        ymin = box[1] * y
-        xmin = box[0] * x
-        ymax = box[3] * y
-        xmax = box[2] * x
+        ymin = box[1]
+        xmin = box[0]
+        ymax = box[3]
+        xmax = box[2]
         xlist = [xmin, xmin, xmax, xmax, xmin]
         ylist = [ymin, ymax, ymax, ymin, ymin]
         plt.plot(xlist, ylist)
@@ -38,10 +38,10 @@ def pltbox(image, boundingboxes: List[Tuple[int, int, int, int]], title: Optiona
     # add textregions if existing
     if textregions:
         for idx, textbox in enumerate(textregions):
-            ymin = textbox[1] * y
-            xmin = textbox[0] * x
-            ymax = textbox[3] * y
-            xmax = textbox[2] * x
+            ymin = textbox[1]
+            xmin = textbox[0]
+            ymax = textbox[3]
+            xmax = textbox[2]
             xlist = [xmin, xmin, xmax, xmax, xmin]
             ylist = [ymin, ymax, ymax, ymin, ymin]
             plt.plot(xlist, ylist, 'g')
@@ -116,4 +116,4 @@ def plot(folder: str, save_as: Optional[str] = None):
 
 if __name__ == '__main__':
     # plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_132903/', save_as='OurExampleIMG_20190821_132903')
-    plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/', save_as='GloSATExample4')
+    plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/119/', save_as='GloSATExample5')

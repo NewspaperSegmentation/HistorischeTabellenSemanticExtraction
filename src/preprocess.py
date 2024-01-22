@@ -44,10 +44,8 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
 
     # Find all TextLine elements and extract the Baseline points
     for textline in soup.find_all('TextRegion'):
-        text = {'coords': get_bbox(convert_coords(textline.find('Coords')['points'])) }
+        text = {'coords': get_bbox(convert_coords(textline.find('Coords')['points']))}
         textregions.append(text)
-
-    
 
     for table in soup.find_all('TableRegion'):
         t = {'coords': get_bbox(convert_coords(table.find('Coords')['points'])), 'cells': [], 'columns': [], 'rows': []}
@@ -55,22 +53,21 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
         currentrow = []  # list of points in current row
         maxcol = 0
 
-        columns = {}    # dictionary of columns and their points
-        rows = {}       # dictionary of rows and their points
+        columns = {}  # dictionary of columns and their points
+        rows = {}  # dictionary of rows and their points
         col_joins = []  # list of join operations for columns
         row_joins = []  # list of join operations for rows
 
-        
         for cell in table.find_all('TableCell'):
             maxcol = max(maxcol, int(cell['col']))
         firstcell = table.find('TableCell')
-        
-        if cell.get('rowSpan') != None and int(firstcell['colSpan'])==maxcol+1 and int(firstcell['row'])==0:
+
+        if cell.get('rowSpan') != None and int(firstcell['colSpan']) == maxcol + 1 and int(firstcell['row']) == 0:
             coord1 = t['coords']
-            #print(t['coords'])
+            # print(t['coords'])
             coord2 = get_bbox(convert_coords(firstcell.find('Coords')['points']))
             t['coords'] = (coord1[0], coord2[3], coord1[2], coord1[3])
-            #print(t['coords'], 'h')
+            # print(t['coords'], 'h')
         if table_relative:
             coord = t['coords']
         else:
@@ -88,12 +85,13 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
             bbox = get_bbox(points, corners, coord)
 
             # add to dictionary
-            if cell.get('rowSpan') != None and not (int(cell['colSpan'])==maxcol+1 and int(cell['row'])==0):
+            x_flat = bbox[0] >= bbox[2]                 # bbox flatt in x dim
+            y_flat = bbox[1] >= bbox[3]                 # bbox flatt in y dim
+            noHeaderCell = cell.get('rowSpan') is not None and not (int(cell['colSpan']) == maxcol + 1 and int(cell['row']) == 0) # check if Cell is a header for table
+            if not x_flat and not y_flat and noHeaderCell:
                 t['cells'].append(bbox)
 
-            # calc rows
-            if cell.get('rowSpan') != None and not (int(cell['colSpan'])==maxcol+1 and int(cell['row'])==0):  # credit cell und GloSAT Text Headers rausnehmen
-
+                # calc rows
                 # add row number to dict
                 if int(cell['row']) in rows.keys():
                     rows[int(cell['row'])].extend(points.tolist())
@@ -108,11 +106,10 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
                 if int(cell['col']) in columns.keys():
                     columns[int(cell['col'])].extend(points.tolist())
                 else:
-                    #if not (int(cell['colSpan'])==maxcol+1 and int(cell['row'])==0):
                     columns[int(cell['col'])] = points.tolist()
 
                 # when cell over multiple columns create a join operation
-                if int(cell['colSpan']) > 1: # and not (int(cell['colSpan'])==maxcol+1 and int(cell['row'])==0):
+                if int(cell['colSpan']) > 1:
                     col_joins.extend([(int(cell['col']), int(cell['col']) + s) for s in range(1, int(cell['colSpan']))])
 
         # join overlapping rows
@@ -139,7 +136,7 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
     return tables, textregions
 
 
-def preprocess(image: str, tables: List[dict], target: str, file_name: str, text: List[dict]=None) -> None:
+def preprocess(image: str, tables: List[dict], target: str, file_name: str, text: List[dict] = None) -> None:
     """
     does preprocessing to the image and cuts outs tables. Then save image and all cut out rois as different files
     :param image: path to image
@@ -166,7 +163,6 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
 
     # save one file for every roi
     tablelist = []
-    img_x, img_y = img.size
     for idx, tab in enumerate(tables):
         # get table coords
         coord = tab['coords']
@@ -174,26 +170,25 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
 
         # crop table from image
         tableimg = img.crop((coord))
-        tab_x, tab_y = tableimg.size
 
         # save image of table
         torch.save(to_tensor(tableimg), f"{target}/" + file_name + "_table_" + str(idx) + ".pt")
         tableimg.save(f"{target}/" + file_name + "_table_" + str(idx) + ".jpg")
 
         # cell bounding boxs (naming: image_file_name _ cell _ idx . pt)
-        cells = torch.tensor([[cell[0] / tab_x, cell[1] / tab_y, cell[2] / tab_x, cell[3] / tab_y] for cell in tab['cells']])
+        cells = torch.tensor(tab['cells'])
         torch.save(cells, f"{target}/" + file_name + "_cell_" + str(idx) + ".pt")
 
         # column bounding boxs (naming: image_file_name _ col _ idx . pt)
-        columns = torch.tensor([[cell[0] / tab_x, cell[1] / tab_y, cell[2] / tab_x, cell[3] / tab_y] for cell in tab['columns']])
+        columns = torch.tensor(tab['columns'])
         torch.save(columns, f"{target}/" + file_name + "_col_" + str(idx) + ".pt")
 
         # row bounding boxs (naming: image_file_name _ row _ idx . pt)
-        rows = torch.tensor([[cell[0] / tab_x, cell[1] / tab_y, cell[2] / tab_x, cell[3] / tab_y] for cell in tab['rows']])
+        rows = torch.tensor(tab['rows'])
         torch.save(rows, f"{target}/" + file_name + "_row_" + str(idx) + ".pt")
 
     # save table bounding boxs (naming: image_file_name _ tables . pt)
-    table = torch.tensor([[cell[0] / img_x, cell[1] / img_y, cell[2] / img_x, cell[3] / img_y] for cell in tablelist])
+    table = torch.tensor(tablelist)
     torch.save(table, f"{target}/" + file_name + "_tables.pt")
 
     # save text bounding boxes (naming: image_file_name _ texts . pt)
@@ -202,7 +197,7 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
         for idx, region in enumerate(text):
             textlist.append(region['coords'])
 
-        texts = torch.tensor([[cell[0] / img_x, cell[1] / img_y, cell[2] / img_x, cell[3] / img_y] for cell in textlist])
+        texts = torch.tensor(textlist)
         torch.save(texts, f"{target}/" + file_name + "_textregions" + ".pt")
 
 
@@ -227,7 +222,7 @@ def main(datafolder: str, imgfolder: str, targetfolder: str):
         # check for strange files
         if plt.imread(img).ndim == 3:
             table, text = extract_annotation(file)
-            preprocess(img, table, targetfolder, file_name,text)
+            preprocess(img, table, targetfolder, file_name, text)
 
 
 if __name__ == '__main__':

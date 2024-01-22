@@ -12,12 +12,13 @@ from torchvision.utils import draw_bounding_boxes
 
 def show_prediction(image, pred, target=None):
     _, y_size, x_size = image.shape
-    boxes = [box  * torch.tensor([x_size, y_size, x_size, y_size]).float() for box in pred]
+    boxes = []
     if target:
-        boxes.extend([box * torch.tensor([x_size, y_size, x_size, y_size]).float() for box in target['boxes']])
+        boxes.extend([box for box in target['boxes']])
+    boxes.extend([box for box in pred])
 
-    colors = ["red"] * len(pred)
-    colors.extend(["green"] * len(target['boxes']))
+    colors = ["green"] * len(target['boxes'])
+    colors.extend(["red"] * len(pred))
 
     result = draw_bounding_boxes((image * 256).to(torch.uint8), torch.stack(boxes), colors=colors, width=5)
 
