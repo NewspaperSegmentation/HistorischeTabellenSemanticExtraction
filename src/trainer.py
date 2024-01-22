@@ -39,7 +39,7 @@ class Trainer:
         self.optimizer = optimizer(self.model.parameters(), lr=LR)
 
         self.bestavrgloss = None
-        self.step = 0
+        self.epoch = 0
         self.name = name
 
         # setup tensor board
@@ -48,7 +48,7 @@ class Trainer:
         self.writer = SummaryWriter(train_log_dir)
 
         self.example_image, self.example_target = testdataset[0]
-        # self.train_example_image, self.train_example_target = traindataset[0]
+        self.train_example_image, self.train_example_target = traindataset[0]
 
     def save(self, name: str = ''):
         """
@@ -73,8 +73,8 @@ class Trainer:
         :param epoch: number of epochs
         :return:
         """
-        for e in range(1, epoch + 1):
-            print(f"start epoch {e}:")
+        for self.epoch  in range(1, epoch + 1):
+            print(f"start epoch {self.epoch}:")
             self.train_epoch()
             avgloss = self.valid()
             if self.bestavrgloss is None or self.bestavrgloss > avgloss:
@@ -86,6 +86,12 @@ class Trainer:
         train one epoch
         :return:
         """
+        loss_lst = []
+        loss_classifier_lst = []
+        loss_box_reg_lst = []
+        loss_objectness_lst = []
+        loss_rpn_box_reg_lst = []
+
         for img, target in tqdm(self.trainloader, desc='training'):
             img = img.to(self.device)
             target['boxes'] = target['boxes'][0].to(self.device)
@@ -97,20 +103,23 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
 
-            # logging
-            self.writer.add_scalar(f'Training/loss', loss.detach().cpu().item(), global_step=self.step)
-            self.writer.add_scalar(f'Training/loss_classifier', output['loss_classifier'].detach().cpu().item(),
-                                   global_step=self.step)
-            self.writer.add_scalar(f'Training/loss_box_reg', output['loss_box_reg'].detach().cpu().item(),
-                                   global_step=self.step)
-            self.writer.add_scalar(f'Training/loss_objectness', output['loss_objectness'].detach().cpu().item(),
-                                   global_step=self.step)
-            self.writer.add_scalar(f'Training/loss_rpn_box_reg', output['loss_rpn_box_reg'].detach().cpu().item(),
-                                   global_step=self.step)
-            self.writer.flush()
-            self.step += 1
+            loss_lst.append(loss.detach().cpu().item())
+            loss_classifier_lst.append(output['loss_classifier'].detach().cpu().item())
+            loss_box_reg_lst.append(output['loss_box_reg'].detach().cpu().item())
+            loss_objectness_lst.append(output['loss_objectness'].detach().cpu().item())
+            loss_rpn_box_reg_lst.append(output['loss_rpn_box_reg'].detach().cpu().item())
 
             del img, target, output, loss
+
+        # logging
+        self.writer.add_scalar(f'Training/loss', np.mean(loss_lst), global_step=self.epoch)
+        self.writer.add_scalar(f'Training/loss_classifier', np.mean(loss_classifier_lst), global_step=self.epoch)
+        self.writer.add_scalar(f'Training/loss_box_reg', np.mean(loss_box_reg_lst), global_step=self.epoch)
+        self.writer.add_scalar(f'Training/loss_objectness', np.mean(loss_objectness_lst), global_step=self.epoch)
+        self.writer.add_scalar(f'Training/loss_rpn_box_reg', np.mean(loss_rpn_box_reg_lst), global_step=self.epoch)
+        self.writer.flush()
+
+        del loss_lst, loss_classifier_lst, loss_box_reg_lst, loss_objectness_lst, loss_rpn_box_reg_lst
 
     def valid(self):
         """
@@ -137,30 +146,25 @@ class Trainer:
         meanloss = np.mean(loss)
 
         # logging
-        self.writer.add_scalar(f'Valid/loss', meanloss, global_step=self.step)
+        self.writer.add_scalar(f'Valid/loss', meanloss, global_step=self.epoch)
         self.writer.add_scalar(f'Valid/loss_classifier', np.mean(loss_classifier),
-                               global_step=self.step)
+                               global_step=self.epoch)
         self.writer.add_scalar(f'Valid/loss_box_reg', np.mean(loss_box_reg),
-                               global_step=self.step)
+                               global_step=self.epoch)
         self.writer.add_scalar(f'Valid/loss_objectness', np.mean(loss_objectness),
-                               global_step=self.step)
+                               global_step=self.epoch)
         self.writer.add_scalar(f'Valid/loss_rpn_box_reg', np.mean(loss_rpn_box_reg),
-                               global_step=self.step)
+                               global_step=self.epoch)
         self.writer.flush()
 
         self.model.eval()
         pred = self.model([self.example_image.to(self.device)])
-        print('valid:')
-        pprint(self.example_target)
-        pprint(pred)
         result = show_prediction(self.example_image, pred[0]['boxes'].detach().cpu(), self.example_target)
-        self.writer.add_image("Valid/example", result, global_step=self.step)
+        self.writer.add_image("Valid/example", result[:, ::2, ::2], global_step=self.epoch)
 
-        # pred = self.model([self.train_example_image.to(self.device)])
-        # print('\ntrain:')
-        # pprint(pred)
-        # result = show_prediction(self.train_example_image, pred[0]['boxes'].detach().cpu(), self.train_example_target)
-        # self.writer.add_image("Training/example", result, global_step=self.step)
+        pred = self.model([self.train_example_image.to(self.device)])
+        result = show_prediction(self.train_example_image, pred[0]['boxes'].detach().cpu(), self.train_example_target)
+        self.writer.add_image("Training/example", result[:, ::2, ::2], global_step=self.epoch)
 
         self.model.train()
         return meanloss
@@ -168,12 +172,12 @@ class Trainer:
 
 if __name__ == '__main__':
     model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
-    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'col')
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'col')
+    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'cell')
+    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'cell')
     print(f"{len(traindataset)=}")
     print(f"{len(validdataset)=}")
     optimizer = AdamW
-    name = 'load1'
+    name = 'run_cells1'
 
     trainer = Trainer(model, traindataset, validdataset, optimizer, name)
-    trainer.train(2)
+    trainer.train(250)
