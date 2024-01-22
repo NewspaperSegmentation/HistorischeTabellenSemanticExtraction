@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+
+from skimage.transform import rescale
 from tqdm import tqdm
 from pprint import pprint
 
@@ -9,13 +11,12 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-import torchvision
-from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights
+from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
 
 from src.customdataset import CustomDataset
 from src.utils.utils import show_prediction
 
-LR = 0.0001
+LR = 0.00001
 
 
 class Trainer:
@@ -46,8 +47,8 @@ class Trainer:
         print(f"{train_log_dir=}")
         self.writer = SummaryWriter(train_log_dir)
 
-        self.example_image, self.example_target = testdataset[1]
-        self.train_example_image, self.train_example_target = traindataset[1]
+        self.example_image, self.example_target = testdataset[0]
+        # self.train_example_image, self.train_example_target = traindataset[0]
 
     def save(self, name: str = ''):
         """
@@ -57,6 +58,14 @@ class Trainer:
         """
         os.makedirs(f'{Path(__file__).parent.absolute()}/../models/', exist_ok=True)
         torch.save(self.model.state_dict(), f'{Path(__file__).parent.absolute()}/../models/{name}')
+
+    def load(self, name: str = ''):
+        """
+        load the given model
+        :param name: name of the model
+        :return:
+        """
+        self.model.load_state_dict(torch.load(f'{Path(__file__).parent.absolute()}/../models/{name}.pt'))
 
     def train(self, epoch: int):
         """
@@ -142,28 +151,29 @@ class Trainer:
         self.model.eval()
         pred = self.model([self.example_image.to(self.device)])
         print('valid:')
+        pprint(self.example_target)
         pprint(pred)
         result = show_prediction(self.example_image, pred[0]['boxes'].detach().cpu(), self.example_target)
         self.writer.add_image("Valid/example", result, global_step=self.step)
 
-        pred = self.model([self.train_example_image.to(self.device)])
-        print('\ntrain:')
-        pprint(pred)
-        result = show_prediction(self.train_example_image, pred[0]['boxes'].detach().cpu(), self.train_example_target)
-        self.writer.add_image("Training/example", result, global_step=self.step)
+        # pred = self.model([self.train_example_image.to(self.device)])
+        # print('\ntrain:')
+        # pprint(pred)
+        # result = show_prediction(self.train_example_image, pred[0]['boxes'].detach().cpu(), self.train_example_target)
+        # self.writer.add_image("Training/example", result, global_step=self.step)
 
-        model = self.model.train()
+        self.model.train()
         return meanloss
 
 
 if __name__ == '__main__':
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
-    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'tables')
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'tables')
+    model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
+    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'col')
+    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'col')
     print(f"{len(traindataset)=}")
     print(f"{len(validdataset)=}")
     optimizer = AdamW
-    name = 'test_one_labels3'
+    name = 'load1'
 
     trainer = Trainer(model, traindataset, validdataset, optimizer, name)
-    trainer.train(250)
+    trainer.train(2)
