@@ -39,8 +39,8 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
 
         result = show_prediction(img[0].detach().cpu(), output['boxes'], target)
         plt.imshow(result.permute(1, 2, 0))
-        # plt.axis('off')
-        # plt.savefig(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/{target['img_number']}.png")
+        plt.axis('off')
+        plt.savefig(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/{idx}_{target['img_number']}.png")
 
         tp, fp, fn, mean_pred_iou, mean_target_iuo = calc_stats(output['boxes'], target['boxes'])
         precision, recall, f1 = calc_metrics(tp, fp, fn)
@@ -81,11 +81,11 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
 
 
 if __name__ == '__main__':
-    name = "run_tables1_es"
+    name = "run_cells1_es"
     model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
     model.load_state_dict(torch.load(f'{Path(__file__).parent.absolute()}/../models/{name}.pt'))
 
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'tables')
+    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'cell')
     print(f"{len(validdataset)=}")
 
     evaluation(model, validdataset, name=name)

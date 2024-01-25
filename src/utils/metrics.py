@@ -17,20 +17,20 @@ def calc_stats(pred: torch.Tensor, target: torch.Tensor, threshold: Union[float,
     :return: true positives, false positives. false negatives, precision, recall, f1
     """
     matrix = box_iou(pred, target)
+    n_pred, n_target = matrix.shape
 
     if isinstance(threshold, float):
         threshold = torch.tensor([threshold])
 
-    pred_iuo = matrix.amax(dim=1).expand(len(threshold), len(matrix))
-    target_iuo = matrix.amax(dim=0).expand(len(threshold), len(matrix))
+    pred_iuo = matrix.amax(dim=1)
+    target_iuo = matrix.amax(dim=0)
 
     mean_pred_iou = torch.mean(pred_iuo)
     mean_target_iuo = torch.mean(target_iuo)
 
-    tp = torch.sum(pred_iuo >= threshold[:, None],dim=1)
+    tp = torch.sum(pred_iuo.expand(len(threshold), n_pred) >= threshold[:, None],dim=1)
     fp = len(matrix) - tp
-    fn = torch.sum(target_iuo < threshold[:, None], dim=1)
-    # torch.sum(matrix.amax(dim=0) < threshold)
+    fn = torch.sum(target_iuo.expand(len(threshold), n_target) < threshold[:, None], dim=1)
 
     return tp, fp, fn, mean_pred_iou, mean_target_iuo
 
