@@ -6,10 +6,11 @@ import torch
 from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
+from PIL import Image
 from tqdm import tqdm
 
 from src.customdataset import CustomDataset
-from src.utils.metrics import weightedF1, calc_stats, calc_metrics
+from src.utils.metrics import weightedF1, calc_stats, calc_metrics, threshold_graph, probabilities_ious
 from src.utils.utils import show_prediction
 
 
@@ -29,6 +30,9 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
     all_fp = torch.zeros(5)
     all_fn = torch.zeros(5)
 
+    probabilities = []
+    ious_list = []
+
     idx = 0
     for img, target in tqdm(dataloader, desc='evaluation'):
         img = img.to(device)
@@ -38,9 +42,12 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
         target = {k: v[0] for k, v in target.items()}
 
         result = show_prediction(img[0].detach().cpu(), output['boxes'], target)
-        plt.imshow(result.permute(1, 2, 0))
-        plt.axis('off')
-        plt.savefig(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/{idx}_{target['img_number']}.png")
+        result = Image.fromarray(result.permute(1, 2, 0).numpy())
+        result.save(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/{idx}_{target['img_number']}.png")
+
+        prob, ious = probabilities_ious(output, target)
+        probabilities.extend(prob)
+        ious_list.extend(ious)
 
         tp, fp, fn, mean_pred_iou, mean_target_iuo = calc_stats(output['boxes'], target['boxes'])
         precision, recall, f1 = calc_metrics(tp, fp, fn)
@@ -67,6 +74,9 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
 
     all_precision, all_recall, all_f1 = calc_metrics(all_tp, all_fp, all_fn)
     all_wf1 = weightedF1(all_f1)
+
+    threshold_graph(torch.tensor(probabilities), torch.tensor(ious_list), name,
+                    f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/")
 
     with open(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/{name}_overview.txt", "w") as f:
         f.write(f"true positives: {[x.item() for x in list(all_tp)]}\n")

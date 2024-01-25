@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 from torchvision.ops import box_iou
 
 
-def calc_stats(pred: torch.Tensor, target: torch.Tensor, threshold: Union[float, torch.Tensor] = torch.tensor([0.5, 0.6, 0.7, 0.8, 0.9])):
+def calc_stats(pred: torch.Tensor, target: torch.Tensor,
+               threshold: Union[float, torch.Tensor] = torch.tensor([0.5, 0.6, 0.7, 0.8, 0.9])):
     """
     calculates true positives, false positives, false negatives, precision, recall and f1 for the given
     thresholds on IoU
@@ -28,7 +29,7 @@ def calc_stats(pred: torch.Tensor, target: torch.Tensor, threshold: Union[float,
     mean_pred_iou = torch.mean(pred_iuo)
     mean_target_iuo = torch.mean(target_iuo)
 
-    tp = torch.sum(pred_iuo.expand(len(threshold), n_pred) >= threshold[:, None],dim=1)
+    tp = torch.sum(pred_iuo.expand(len(threshold), n_pred) >= threshold[:, None], dim=1)
     fp = len(matrix) - tp
     fn = torch.sum(target_iuo.expand(len(threshold), n_target) < threshold[:, None], dim=1)
 
@@ -62,6 +63,41 @@ def weightedF1(f1, threshold: Union[float, torch.Tensor] = torch.tensor([0.5, 0.
     return weighted_average
 
 
+def probabilities_ious(pred, target):
+    probabilities = list(pred['scores'])
+    ious = list(box_iou(pred['boxes'], target['boxes']).amax(dim=1))
+
+    return probabilities, ious
+
+
+def threshold_graph(probabilities: torch.Tensor, ious: torch.Tensor, name:str, path: str,
+                    iou_thresholds: Union[float, torch.Tensor] = torch.tensor([0.5, 0.6, 0.7, 0.8, 0.9])):
+
+    sorted_probs, _ = torch.sort(probabilities)
+    prob_thresholds = torch.unique(sorted_probs)
+
+    true_positives = torch.zeros(len(prob_thresholds), len(iou_thresholds))
+    false_positives = torch.zeros(len(prob_thresholds), len(iou_thresholds))
+
+    for i, t in enumerate(prob_thresholds):
+        mask = probabilities >= t
+        data = ious[mask]
+        data = data.expand(len(iou_thresholds), len(data))
+
+        true_positives[i] = torch.sum(data >= iou_thresholds[:, None], dim=1)
+        false_positives[i] = torch.sum(data < iou_thresholds[:, None], dim=1)
+
+    for idx, iou_t in enumerate(iou_thresholds):
+        plt.xlim(0, 1.05)
+        plt.title(f"{name}: detection at {round(iou_t.item(), 1)} IoU Threshold")
+        plt.plot(prob_thresholds, true_positives[:, idx], label='true positives')
+        plt.plot(prob_thresholds, false_positives[:, idx], label='false positives')
+        plt.xlabel('probability threshold')
+        plt.ylabel('count')
+        plt.legend()
+        plt.savefig(f"{path}/threshold_graph_{round(iou_t.item() * 10)}.png")
+        plt.clf()
+
 
 def main(pred, target):
     # add bboxes
@@ -90,16 +126,21 @@ def main(pred, target):
 
 
 if __name__ == '__main__':
-    pred = torch.tensor([[10, 20, 30, 40],
-                         [40, 50, 60, 70],
-                         [45, 20, 65, 40],
-                         [85, 25, 105, 55]])
+    # pred = torch.tensor([[10, 20, 30, 40],
+    #                      [40, 50, 60, 70],
+    #                      [45, 20, 65, 40],
+    #                      [85, 25, 105, 55]])
 
-    target = torch.tensor([[15, 25, 30, 40],
-                           [45, 55, 65, 75],
-                           [15, 55, 35, 70],
-                           [85, 25, 104, 54]])
+    # target = torch.tensor([[15, 25, 30, 40],
+    #                        [45, 55, 65, 75],
+    #                        [15, 55, 35, 70],
+    #                        [85, 25, 104, 54]])
 
-    main(pred, target)
-    weightedF1(pred, target)
+    # main(pred, target)
+    # weightedF1(pred, target)
 
+
+    probabilities = torch.rand(100)
+    ious = (probabilities + 0.5 * torch.randn(100)).clip(0, 1)
+
+    threshold_graph(probabilities, ious)
