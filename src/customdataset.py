@@ -25,7 +25,7 @@ class CustomDataset(Dataset):
             tablenum = self.data[index].split(os.sep)[-1].split("_")[-1][-4]
             img = torch.load(self.data[index]) / 256
             target = torch.load(f"{'/'.join(self.data[index].split(os.sep)[:-1])}/{imgnum}_{self.objective}_{tablenum}.pt")
-        return img, {'boxes': target, 'labels': torch.ones(len(target), dtype=torch.int64)}
+        return img, {'boxes': target, 'labels': torch.ones(len(target), dtype=torch.int64), 'img_number': imgnum}
 
     def __len__(self) -> int:
         return len(self.data)

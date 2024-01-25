@@ -1,9 +1,7 @@
 import os
 from pathlib import Path
 
-from skimage.transform import rescale
 from tqdm import tqdm
-from pprint import pprint
 
 import numpy as np
 import torch
@@ -73,13 +71,18 @@ class Trainer:
         :param epoch: number of epochs
         :return:
         """
-        for self.epoch  in range(1, epoch + 1):
+        for self.epoch in range(1, epoch + 1):
             print(f"start epoch {self.epoch}:")
             self.train_epoch()
             avgloss = self.valid()
+
+            # early stopping
             if self.bestavrgloss is None or self.bestavrgloss > avgloss:
                 self.bestavrgloss = avgloss
                 self.save(f"{self.name}_es.pt")
+
+        # save model after training
+        self.save(f"{self.name}_end.pt")
 
     def train_epoch(self):
         """
@@ -172,12 +175,12 @@ class Trainer:
 
 if __name__ == '__main__':
     model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
-    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'cell')
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'cell')
+    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'tables')
+    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'tables')
     print(f"{len(traindataset)=}")
     print(f"{len(validdataset)=}")
     optimizer = AdamW
-    name = 'run_cells1'
+    name = 'run_tables1'
 
     trainer = Trainer(model, traindataset, validdataset, optimizer, name)
     trainer.train(250)

@@ -13,7 +13,7 @@ from torchvision.utils import draw_bounding_boxes
 def show_prediction(image, pred, target=None):
     _, y_size, x_size = image.shape
     boxes = []
-    if target:
+    if target is not None:
         boxes.extend([box for box in target['boxes']])
     boxes.extend([box for box in pred])
 
