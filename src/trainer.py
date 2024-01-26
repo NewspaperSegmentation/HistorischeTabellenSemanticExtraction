@@ -174,13 +174,21 @@ class Trainer:
 
 
 if __name__ == '__main__':
+    from torchvision import transforms
     model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
-    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'tables')
+    transform = torch.nn.Sequential(
+        transforms.RandomApply(torch.nn.ModuleList([transforms.ColorJitter(brightness=(0.5, 1.5), saturation=(0, 2))]),
+                               p=0.1),
+        transforms.RandomApply(torch.nn.ModuleList([transforms.GaussianBlur(kernel_size=9, sigma=(2, 10))]), p=0.1),
+        transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.1),
+        transforms.RandomGrayscale(p=0.1)
+    )
+    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'tables', transforms=transform)
     validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'tables')
     print(f"{len(traindataset)=}")
     print(f"{len(validdataset)=}")
     optimizer = AdamW
-    name = 'run_tables1'
+    name = 'transforms_test'
 
     trainer = Trainer(model, traindataset, validdataset, optimizer, name)
-    trainer.train(250)
+    trainer.train(10)
