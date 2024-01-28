@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pandas as pd
 import torch
-from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
 from PIL import Image
@@ -21,9 +20,7 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
     model.to(device)
     model.eval()
 
-    df = pd.DataFrame(
-        columns=['image_number', 'mean_pred_iou', 'mean_target_iuo', 'tp', 'fp', 'fn', 'precision', 'recall', 'f1',
-                 'wf1'])
+    df = pd.DataFrame(columns=['image_number', 'mean_pred_iou', 'mean_target_iuo', 'wf1'], index=[0])
     os.makedirs(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/", exist_ok=True)
 
     all_tp = torch.zeros(5)
@@ -57,18 +54,20 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
         all_fp += fp
         all_fn += fn
 
-        metrics = pd.DataFrame({'image_number': target['img_number'],
-                                'mean_pred_iou': mean_pred_iou.item(),
-                                'mean_target_iuo': mean_target_iuo.item(),
-                                'tp': [x.item() for x in list(tp)],
-                                'fp': [x.item() for x in list(fp)],
-                                'fn': [x.item() for x in list(fn)],
-                                'precision': [x.item() for x in list(precision)],
-                                'recall': [x.item() for x in list(recall)],
-                                'f1': [x.item() for x in list(f1)],
-                                'wf1': wf1.item()})
+        metrics = {'image_number': target['img_number'],
+                   'mean_pred_iou': mean_pred_iou.item(),
+                   'mean_target_iuo': mean_target_iuo.item(),
+                   'wf1': wf1.item(),
+                   'prediction_count': len(output)}
 
-        df = pd.concat([df, metrics])
+        metrics.update({f'tp_{[9, 8, 7, 6, 5][i]}': list(tp)[i].item() for i in range(5)})
+        metrics.update({f'fp_{[9, 8, 7, 6, 5][i]}': list(fp)[i].item() for i in range(5)})
+        metrics.update({f'fn_{[9, 8, 7, 6, 5][i]}': list(fn)[i].item() for i in range(5)})
+        metrics.update({f'precision_{[9, 8, 7, 6, 5][i]}': list(precision)[i].item() for i in range(5)})
+        metrics.update({f'recall_{[9, 8, 7, 6, 5][i]}': list(recall)[i].item() for i in range(5)})
+        metrics.update({f'f1_{[9, 8, 7, 6, 5][i]}': list(f1)[i].item() for i in range(5)})
+
+        df = pd.concat([df, pd.DataFrame(metrics, index=[0])])
 
         idx += 1
 
@@ -91,8 +90,8 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
 
 
 if __name__ == '__main__':
-    name = "run_cells1_es"
-    model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
+    name = "run_cells_limit2_es"
+    model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, box_detections_per_img=256)
     model.load_state_dict(torch.load(f'{Path(__file__).parent.absolute()}/../models/{name}.pt'))
 
     validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'cell')
