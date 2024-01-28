@@ -44,11 +44,17 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
 
     # Find all TextLine elements and extract the Baseline points
     for textline in soup.find_all('TextRegion'):
-        text = {'coords': get_bbox(convert_coords(textline.find('Coords')['points']))}
-        textregions.append(text)
+        textcoords = textline.find('Coords')['points']
+        if textcoords.find('NaN') == -1:
+            text = {'coords': get_bbox(convert_coords(textline.find('Coords')['points']))}
+            textregions.append(text)
 
     for table in soup.find_all('TableRegion'):
-        t = {'coords': get_bbox(convert_coords(table.find('Coords')['points'])), 'cells': [], 'columns': [], 'rows': []}
+        tablecoords = table.find('Coords')['points']
+        if tablecoords.find('NaN') != -1:
+            continue
+
+        t = {'coords': get_bbox(convert_coords(tablecoords)), 'cells': [], 'columns': [], 'rows': []}
         i = 0  # row counter
         currentrow = []  # list of points in current row
         maxcol = 0
@@ -85,9 +91,10 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
             bbox = get_bbox(points, corners, coord)
 
             # add to dictionary
-            x_flat = bbox[0] >= bbox[2]                 # bbox flatt in x dim
-            y_flat = bbox[1] >= bbox[3]                 # bbox flatt in y dim
-            noHeaderCell = cell.get('rowSpan') is not None and not (int(cell['colSpan']) == maxcol + 1 and int(cell['row']) == 0) # check if Cell is a header for table
+            x_flat = bbox[0] >= bbox[2]  # bbox flatt in x dim
+            y_flat = bbox[1] >= bbox[3]  # bbox flatt in y dim
+            noHeaderCell = cell.get('rowSpan') is not None and not (int(cell['colSpan']) == maxcol + 1 and int(
+                cell['row']) == 0)  # check if Cell is a header for table
             if not x_flat and not y_flat and noHeaderCell:
                 t['cells'].append(bbox)
 
@@ -188,8 +195,9 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
         torch.save(rows, f"{target}/" + file_name + "_row_" + str(idx) + ".pt")
 
     # save table bounding boxs (naming: image_file_name _ tables . pt)
-    table = torch.tensor(tablelist)
-    torch.save(table, f"{target}/" + file_name + "_tables.pt")
+    if tablelist:
+        table = torch.tensor(tablelist)
+        torch.save(table, f"{target}/" + file_name + "_tables.pt")
 
     # save text bounding boxes (naming: image_file_name _ texts . pt)
     textlist = []
@@ -215,6 +223,7 @@ def main(datafolder: str, imgfolder: str, targetfolder: str):
     print("Processing folder, this may take a little while!")
 
     files = [x for x in glob.glob(f"{datafolder}/*.xml")]
+
     file_names = [os.path.splitext(os.path.basename(path))[0] for path in files]
     images = [f"{imgfolder}/{x}.jpg" for x in file_names]
 
@@ -226,15 +235,15 @@ def main(datafolder: str, imgfolder: str, targetfolder: str):
 
 
 if __name__ == '__main__':
-    ours = False
-    glosat = True
+    ours = True
+    glosat = False
 
     if ours:
-        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/Tables/TableDataset/',
-             imgfolder=f'{Path(__file__).parent.absolute()}/../data/Tables/TableDataset/',
+        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/immediat-tables-main/annotations/',
+             imgfolder=f'{Path(__file__).parent.absolute()}/../data/immediat-tables-main/images/',
              targetfolder=f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/')
 
-        plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_141527/')
+        # plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_141527/')
 
     if glosat:
         main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
@@ -246,3 +255,4 @@ if __name__ == '__main__':
              targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
 
         plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/')
+
