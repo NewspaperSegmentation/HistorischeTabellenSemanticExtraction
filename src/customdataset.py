@@ -46,7 +46,7 @@ if __name__ == '__main__':
         transforms.RandomGrayscale(p=1)
     )
 
-    dataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'tables', transforms=transform)
+    dataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/', 'tables', transforms=transform)
     img, target = dataset[3]
 
     result = Image.fromarray((img.permute(1, 2, 0).numpy()*255).astype(np.uint8))

@@ -38,4 +38,4 @@ def split(folder: str, split: Tuple[float, float, float]):
 
 
 if __name__ == '__main__':
-    split("../data/GloSAT/preprocessed", (.8, .1, .1))
+    split("../data/Tables/preprocessed/", (.8, .1, .1))

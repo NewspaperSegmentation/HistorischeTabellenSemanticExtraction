@@ -175,7 +175,7 @@ class Trainer:
 
 if __name__ == '__main__':
     from torchvision import transforms
-    model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
+    model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, box_detections_per_img=256)
     transform = torch.nn.Sequential(
         transforms.RandomApply(torch.nn.ModuleList([transforms.ColorJitter(brightness=(0.5, 1.5), saturation=(0, 2))]),
                                p=0.1),
@@ -183,12 +183,12 @@ if __name__ == '__main__':
         transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.1),
         transforms.RandomGrayscale(p=0.1)
     )
-    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train', 'tables', transforms=transform)
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'tables')
+    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/train/', 'tables', transforms=transform)
+    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/valid/', 'tables')
     print(f"{len(traindataset)=}")
     print(f"{len(validdataset)=}")
     optimizer = AdamW
-    name = 'transforms_test'
+    name = 'our_dataset_test'
 
     trainer = Trainer(model, traindataset, validdataset, optimizer, name)
     trainer.train(10)

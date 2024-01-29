@@ -209,7 +209,7 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
         torch.save(texts, f"{target}/" + file_name + "_textregions" + ".pt")
 
 
-def main(datafolder: str, imgfolder: str, targetfolder: str):
+def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool=True):
     """
     takes the folder of a dataset and preprocesses it. Save preprocessed images and files with bounding boxes
     table.pt: file with bounding boxes of tables format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
@@ -231,7 +231,8 @@ def main(datafolder: str, imgfolder: str, targetfolder: str):
         # check for strange files
         if plt.imread(img).ndim == 3:
             table, text = extract_annotation(file)
-            preprocess(img, table, targetfolder, file_name, text)
+            if table or not ignore_empty:
+                preprocess(img, table, targetfolder, file_name, text)
 
 
 if __name__ == '__main__':
