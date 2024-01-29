@@ -1,0 +1,8 @@
+numpy~=1.25.2
+pytorch~=2.0.1
+pillow~=9.4.0
+beautifulsoup4~=4.12.2
+matplotlib~=3.7.2
+tqdm~=4.66.1
+scipy~=1.11.1
+torchvision~=0.15.2
