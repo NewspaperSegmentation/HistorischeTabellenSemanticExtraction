@@ -17,7 +17,7 @@ from src.utils.metrics import (weightedF1,
                                calc_metrics,
                                threshold_graph,
                                probabilities_ious)
-from src.utils.utils import show_prediction
+from src.utils.utils import get_image
 
 
 def evaluation(model: torch.nn.Module,
@@ -67,7 +67,8 @@ def evaluation(model: torch.nn.Module,
         output = {k: v.detach().cpu() for k, v in output[0].items()}
         target = {k: v[0] for k, v in target.items()}
 
-        result = show_prediction(img[0].detach().cpu(), output['boxes'], target)
+        boxes = {'prediction': output['boxes'], 'ground truth': target['boxes']}
+        result = get_image(img.detach().cpu(), boxes)
 
         result = Image.fromarray(result.permute(1, 2, 0).numpy())
         result.save(f"{Path(__file__).parent.absolute()}/../logs/evaluation/"

@@ -16,7 +16,7 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from utils.utils import convert_coords, get_bbox
-from show_annotations import plot
+from utils.utils import plot_annotations
 
 
 def extract_annotation(file: str,
@@ -296,4 +296,4 @@ if __name__ == '__main__':
              targetfolder=f'{Path(__file__).parent.absolute()}/../data/'
                           f'GloSAT/preprocessed/')
 
-        plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/')
+        plot_annotations(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/')

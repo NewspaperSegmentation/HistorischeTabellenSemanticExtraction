@@ -1,42 +1,131 @@
 """Utility functions."""
-
-from typing import Tuple, Union, List
+import os
+from pathlib import Path
+from typing import Tuple, Union, List, Optional, Dict
 
 import numpy as np
 import torch
+from matplotlib import pyplot as plt
 
 from torchvision.utils import draw_bounding_boxes
 
 
-def show_prediction(image: torch.Tensor,
-                    pred: torch.Tensor,
-                    target: Union[torch.Tensor, None] = None) -> torch.Tensor:
+def get_image(image: torch.Tensor,
+              boxes: Dict[str, torch.Tensor]) -> torch.Tensor:
     """
-    Visualize the predicted and ground truth on top of the image.
+    Draws bounding boxes on the given image and returns it as torch Tensor.
 
     Args:
-        image: image that was predicted
-        pred: predicted bounding boxes
-        target: ground truth bounding boxes
+        image: image to draw bounding boxes on
+        boxes: Dict of bounding boxes to draw on the image.
+               Keys are used as labels
 
     Returns:
-        torch.Tensor: visualized image
-
+            torch.Tensor of image with bounding boxes
     """
-    _, y_size, x_size = image.shape
-    boxes = []
-    if target is not None:
-        boxes.extend([box for box in target['boxes']])
-    boxes.extend([box for box in pred])
+    colorplate = ['red', 'green', 'blue', 'yellow']
 
-    colors = ["green"] * len(target['boxes'])
-    colors.extend(["red"] * len(pred))
+    colors = []
+    labels = []
+    coords = torch.zeros((0, 4))
+    for idx, label, item in enumerate(boxes.items()):
+        labels.extend([label] * len(item))
+        colors.extend([colorplate[idx]] * len(item))
+        coords = np.vstack((coords, item))
 
-    result = draw_bounding_boxes((image * 256).to(torch.uint8), torch.stack(boxes),
-                                 colors=colors,
-                                 width=5)
+    result = draw_bounding_boxes((image * 256).to(torch.uint8), coords, colors=colors, width=5)
 
     return result
+
+
+def plot_image(image: torch.Tensor,
+               boxes: Dict[str, torch.Tensor],
+               title: Optional[str] = None,
+               save_path: Optional[str] = None) -> None:
+    """
+    Plot an image with given bounding boxes using pyplot.
+
+    Args:
+        image: image to plot
+        boxes: dictionary with bounding boxes. Keys are labels.
+        title: title of the plot
+        save_path: path to save the plot as image
+    """
+    # create image with annotation
+    image = get_image(image, boxes)
+
+    # plot image
+    plt.imshow(image)
+
+    # add title if existing
+    if title is not None:
+        plt.title(title)
+
+    # save images if save_as folder is given
+    if save_path is not None:
+        path = f"{Path(__file__).parent.absolute()}/../data/assets/images/{save_path}/"
+        os.makedirs(path, exist_ok=True)
+        plt.savefig(f"{path}{save_path}_{title}.png")
+
+    # show plot
+    plt.show()
+
+
+def plot_annotations(folder: str, save_as: Optional[str] = None) -> None:
+    """
+    Shows target for model from given folder.
+
+    Args:
+        folder: path to folder of preprocessed
+        save_as: name of the folder to save the images in (optional)
+                 Images are saved in data/assets/images/
+    """
+    # List of bboxes for every property
+    textlist = []
+    has_textregion = False
+    tablelist = []
+    celllist = []
+    rowlist = []
+    collist = []
+    imglist = []
+
+    # iterate over files in folder and extract bboxes
+    files = os.listdir(folder)
+    for filename in sorted(files):
+        if "textregions" in filename:
+            textlist = torch.load(folder + filename)
+            has_textregion = True
+
+        if "table" in filename and filename.endswith('.jpg'):
+            imglist.append(plt.imread(folder + filename))
+
+        if "table" in filename and filename.endswith('.pt'):
+            tablelist = torch.load(folder + filename)
+
+        if "cell" in filename and filename.endswith('.pt'):
+            celllist.append(torch.load(folder + filename))
+
+        if "row" in filename and filename.endswith('.pt'):
+            rowlist.append(torch.load(folder + filename))
+
+        if "col" in filename and filename.endswith('.pt'):
+            collist.append(torch.load(folder + filename))
+
+    # plot tables
+    plot_image(plt.imread(folder + sorted(files)[0]), tablelist, title='tables', save_path=save_as)
+
+    # plot tables and textregions if textregions exists
+    if has_textregion:
+        plot_image(plt.imread(folder + sorted(files)[0]),
+                   boxes={'tables': tablelist, 'textregions': textlist},
+                   title='tables and textregions',
+                   save_path=save_as, )
+
+    # plot cells, rows and columns
+    for idx, img in enumerate(imglist):
+        plot_image(img, boxes={'cells': celllist[idx]}, title='cells', save_path=save_as)
+        plot_image(img, boxes={'rows': rowlist[idx]}, title='rows', save_path=save_as)
+        plot_image(img, boxes={'columns': collist[idx]}, title='columns', save_path=save_as)
 
 
 def convert_coords(string: str) -> np.ndarray:

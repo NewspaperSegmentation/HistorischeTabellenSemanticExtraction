@@ -24,7 +24,7 @@ def copy(folder: str, split: List[str], name: str) -> None:
         shutil.copytree(f, f'{folder}/../{name}/{numb}')
 
 
-def split_dataset(folder: str, split: Tuple[float, float, float]):
+def split_dataset(folder: str, split: Tuple[float, float, float]) -> None:
     """
     Splits the dataset into training, validation and test split.
 

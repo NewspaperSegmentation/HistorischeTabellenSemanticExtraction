@@ -14,7 +14,7 @@ from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN_Res
     FasterRCNN
 
 from src.customdataset import CustomDataset
-from src.utils.utils import show_prediction
+from src.utils.utils import get_image
 
 LR = 0.00001
 
@@ -170,17 +170,23 @@ class Trainer:
         self.writer.flush()
 
         self.model.eval()
-        pred = self.model([self.example_image.to(self.device)])
-        result = show_prediction(self.example_image, pred[0]['boxes'].detach().cpu(),
-                                 self.example_target)
-        self.writer.add_image("Valid/example", result[:, ::2, ::2], global_step=self.epoch)
 
+        # predict example form training set
         pred = self.model([self.train_example_image.to(self.device)])
-        result = show_prediction(self.train_example_image, pred[0]['boxes'].detach().cpu(),
-                                 self.train_example_target)
+        boxes = {'prediction': pred[0]['boxes'].detach().cpu(),
+                 'ground truth': self.train_example_target}
+        result = get_image(self.train_example_image, boxes)
         self.writer.add_image("Training/example", result[:, ::2, ::2], global_step=self.epoch)
 
+        # predict example form validation set
+        pred = self.model([self.example_image.to(self.device)])
+        boxes = {'prediction': pred[0]['boxes'].detach().cpu(),
+                 'ground truth': self.example_target}
+        result = get_image(self.example_image, boxes)
+        self.writer.add_image("Valid/example", result[:, ::2, ::2], global_step=self.epoch)
+
         self.model.train()
+
         return meanloss
 
 
