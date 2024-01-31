@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 from tqdm import tqdm
 
@@ -9,7 +10,8 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
+from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights, \
+    FasterRCNN
 
 from src.customdataset import CustomDataset
 from src.utils.utils import show_prediction
@@ -18,7 +20,8 @@ LR = 0.00001
 
 
 class Trainer:
-    def __init__(self, model, traindataset: CustomDataset, testdataset: CustomDataset, optimizer, name: str, cuda: int = 0) -> None:
+    def __init__(self, model, traindataset: CustomDataset, testdataset: CustomDataset, optimizer,
+                 name: str, cuda: int = 0) -> None:
         """
         Trainer class to train model
         :param model: model to train
@@ -28,7 +31,8 @@ class Trainer:
         :param name: name of the model in savefiles and tensorboard
         :param cuda: number of used cuda device
         """
-        self.device = torch.device(f"cuda:{cuda}") if torch.cuda.is_available() else torch.device('cpu')
+        self.device = torch.device(f"cuda:{cuda}") if torch.cuda.is_available() else torch.device(
+            'cpu')
         print(f"using {self.device}")
 
         self.model = model.to(self.device)
@@ -63,7 +67,8 @@ class Trainer:
         :param name: name of the model
         :return:
         """
-        self.model.load_state_dict(torch.load(f'{Path(__file__).parent.absolute()}/../models/{name}.pt'))
+        self.model.load_state_dict(
+            torch.load(f'{Path(__file__).parent.absolute()}/../models/{name}.pt'))
 
     def train(self, epoch: int):
         """
@@ -116,10 +121,14 @@ class Trainer:
 
         # logging
         self.writer.add_scalar(f'Training/loss', np.mean(loss_lst), global_step=self.epoch)
-        self.writer.add_scalar(f'Training/loss_classifier', np.mean(loss_classifier_lst), global_step=self.epoch)
-        self.writer.add_scalar(f'Training/loss_box_reg', np.mean(loss_box_reg_lst), global_step=self.epoch)
-        self.writer.add_scalar(f'Training/loss_objectness', np.mean(loss_objectness_lst), global_step=self.epoch)
-        self.writer.add_scalar(f'Training/loss_rpn_box_reg', np.mean(loss_rpn_box_reg_lst), global_step=self.epoch)
+        self.writer.add_scalar(f'Training/loss_classifier', np.mean(loss_classifier_lst),
+                               global_step=self.epoch)
+        self.writer.add_scalar(f'Training/loss_box_reg', np.mean(loss_box_reg_lst),
+                               global_step=self.epoch)
+        self.writer.add_scalar(f'Training/loss_objectness', np.mean(loss_objectness_lst),
+                               global_step=self.epoch)
+        self.writer.add_scalar(f'Training/loss_rpn_box_reg', np.mean(loss_rpn_box_reg_lst),
+                               global_step=self.epoch)
         self.writer.flush()
 
         del loss_lst, loss_classifier_lst, loss_box_reg_lst, loss_objectness_lst, loss_rpn_box_reg_lst
@@ -162,33 +171,70 @@ class Trainer:
 
         self.model.eval()
         pred = self.model([self.example_image.to(self.device)])
-        result = show_prediction(self.example_image, pred[0]['boxes'].detach().cpu(), self.example_target)
+        result = show_prediction(self.example_image, pred[0]['boxes'].detach().cpu(),
+                                 self.example_target)
         self.writer.add_image("Valid/example", result[:, ::2, ::2], global_step=self.epoch)
 
         pred = self.model([self.train_example_image.to(self.device)])
-        result = show_prediction(self.train_example_image, pred[0]['boxes'].detach().cpu(), self.train_example_target)
+        result = show_prediction(self.train_example_image, pred[0]['boxes'].detach().cpu(),
+                                 self.train_example_target)
         self.writer.add_image("Training/example", result[:, ::2, ::2], global_step=self.epoch)
 
         self.model.train()
         return meanloss
 
 
+def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
+    """
+    Creates a FasterRCNN model for training, using the specified objective parameter.
+
+    Args:
+        objective: objective of the model (should be 'tables', 'cell', 'row' or 'col')
+        load_weights: name of the model to load
+
+    Returns:
+        FasterRCNN model
+    """
+
+    params = {'tables': {'box_detections_per_img': 10},
+              'cell': {'box_detections_per_img': 200},
+              'row': {'box_detections_per_img': 100},
+              'col': {'box_detections_per_img': 100}}
+
+    model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT,
+                                    **params[objective])
+
+    if load_weights:
+        model.load_state_dict(torch.load(f'{Path(__file__).parent.absolute()}/../models/'
+                                         f'{load_weights}.pt'))
+
+    return model
+
+
 if __name__ == '__main__':
     from torchvision import transforms
-    model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, box_detections_per_img=256)
+
+    name = 'our_dataset_test'
+    model = get_model('cell')
+
     transform = torch.nn.Sequential(
-        transforms.RandomApply(torch.nn.ModuleList([transforms.ColorJitter(brightness=(0.5, 1.5), saturation=(0, 2))]),
-                               p=0.1),
-        transforms.RandomApply(torch.nn.ModuleList([transforms.GaussianBlur(kernel_size=9, sigma=(2, 10))]), p=0.1),
+        transforms.RandomApply(torch.nn.ModuleList([
+            transforms.ColorJitter(brightness=(0.5, 1.5), saturation=(0, 2))]), p=0.1),
+        transforms.RandomApply(
+            torch.nn.ModuleList([transforms.GaussianBlur(kernel_size=9, sigma=(2, 10))]), p=0.1),
         transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.1),
         transforms.RandomGrayscale(p=0.1)
     )
-    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/train/', 'tables', transforms=transform)
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/valid/', 'tables')
+
+    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/train/',
+                                 'tables', transforms=transform)
+    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/valid/',
+                                 'tables')
+
     print(f"{len(traindataset)=}")
     print(f"{len(validdataset)=}")
+
     optimizer = AdamW
-    name = 'our_dataset_test'
 
     trainer = Trainer(model, traindataset, validdataset, optimizer, name)
     trainer.train(10)
