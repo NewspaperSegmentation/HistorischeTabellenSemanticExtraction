@@ -173,15 +173,15 @@ class Trainer:
 
         # predict example form training set
         pred = self.model([self.train_example_image.to(self.device)])
-        boxes = {'prediction': pred[0]['boxes'].detach().cpu(),
-                 'ground truth': self.train_example_target}
+        boxes = {'ground truth': self.train_example_target['boxes'],
+                 'prediction': pred[0]['boxes'].detach().cpu()}
         result = get_image(self.train_example_image, boxes)
         self.writer.add_image("Training/example", result[:, ::2, ::2], global_step=self.epoch)
 
         # predict example form validation set
         pred = self.model([self.example_image.to(self.device)])
-        boxes = {'prediction': pred[0]['boxes'].detach().cpu(),
-                 'ground truth': self.example_target}
+        boxes = {'ground truth': self.example_target['boxes'],
+                 'prediction': pred[0]['boxes'].detach().cpu()}
         result = get_image(self.example_image, boxes)
         self.writer.add_image("Valid/example", result[:, ::2, ::2], global_step=self.epoch)
 
@@ -220,8 +220,9 @@ def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
 if __name__ == '__main__':
     from torchvision import transforms
 
-    name = 'our_dataset_test'
-    model = get_model('cell')
+    name = 'test_new_ploting4'
+    objective = 'cell'
+    model = get_model(objective)
 
     transform = torch.nn.Sequential(
         transforms.RandomApply(torch.nn.ModuleList([
@@ -232,10 +233,12 @@ if __name__ == '__main__':
         transforms.RandomGrayscale(p=0.1)
     )
 
-    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/train/',
-                                 'tables', transforms=transform)
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/valid/',
-                                 'tables')
+    traindataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/train/',
+                                 objective,
+                                 transforms=transform)
+
+    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid/',
+                                 objective)
 
     print(f"{len(traindataset)=}")
     print(f"{len(validdataset)=}")

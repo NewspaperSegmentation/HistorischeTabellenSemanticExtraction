@@ -23,15 +23,15 @@ def get_image(image: torch.Tensor,
     Returns:
             torch.Tensor of image with bounding boxes
     """
-    colorplate = ['red', 'green', 'blue', 'yellow']
+    colorplate = ['green', 'red', 'blue', 'yellow']
 
     colors = []
     labels = []
     coords = torch.zeros((0, 4))
-    for idx, label, item in enumerate(boxes.items()):
+    for idx, (label, item) in enumerate(boxes.items()):
         labels.extend([label] * len(item))
         colors.extend([colorplate[idx]] * len(item))
-        coords = np.vstack((coords, item))
+        coords = torch.vstack((coords, item))
 
     result = draw_bounding_boxes((image * 256).to(torch.uint8), coords, colors=colors, width=5)
 
