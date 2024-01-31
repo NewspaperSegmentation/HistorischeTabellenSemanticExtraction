@@ -1,3 +1,5 @@
+"""Script to download datasets."""
+
 import os
 import zipfile
 from pathlib import Path
@@ -5,10 +7,7 @@ from urllib import request
 
 
 def download_glosat() -> None:
-    """
-    download script for GloSAT dataset
-    :return: None
-    """
+    """Download script for GloSAT dataset."""
     print("process can take a quite some time")
     print("downloading...")
 
@@ -32,11 +31,21 @@ def download_glosat() -> None:
 
 
 def download_ours() -> None:
-    # TODO: write script to download our dataset in the Datafolder
+    """Download script for our data."""
+    # TODO: implement download script for our dataset
     pass
 
 
-def main(dataset: str = 'GloSAT'):
+def main(dataset: str = 'GloSAT') -> None:
+    """
+    Download script for datasets. 'ours' currently not implemented.
+
+    Args:
+        dataset: name of the dataset ('GloSAT' or 'ours')
+
+    Raises:
+        Exception: if there is no download script for the given dataset
+    """
     if dataset.lower() == 'glosat':
         download_glosat()
     elif dataset.lower() == 'ours':

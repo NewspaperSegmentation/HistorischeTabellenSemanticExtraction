@@ -1,27 +1,56 @@
+"""Evaluates the model performance on a test dataset."""
+
 import os
 from pathlib import Path
 
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
+from torchvision.models.detection import (fasterrcnn_resnet50_fpn,
+                                          FasterRCNN_ResNet50_FPN_Weights)
 from PIL import Image
 from tqdm import tqdm
 
 from src.customdataset import CustomDataset
-from src.utils.metrics import weightedF1, calc_stats, calc_metrics, threshold_graph, probabilities_ious
+from src.utils.metrics import (weightedF1,
+                               calc_stats,
+                               calc_metrics,
+                               threshold_graph,
+                               probabilities_ious)
 from src.utils.utils import show_prediction
 
 
-def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
+def evaluation(model: torch.nn.Module,
+               dataset: CustomDataset,
+               name: str,
+               cuda: int = 0) -> None:
+    """
+    Evaluates the given model on the given dataset.
+
+    Args:
+        model: model to test
+        dataset: (test) dataset to evaluate on
+        name: name of the folder to save the results
+        cuda: number of cuda device to use
+    """
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
-    device = torch.device(f"cuda:{cuda}") if torch.cuda.is_available() else torch.device('cpu')
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{cuda}")
+    else:
+        device = torch.device('cpu')
+
     model.to(device)
     model.eval()
 
-    df = pd.DataFrame(columns=['image_number', 'mean_pred_iou', 'mean_target_iuo', 'wf1'], index=[0])
-    os.makedirs(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/", exist_ok=True)
+    df = pd.DataFrame(columns=['image_number',
+                               'mean_pred_iou',
+                               'mean_target_iuo',
+                               'wf1'],
+                      index=[0])
+
+    os.makedirs(f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
+                f"{name}/", exist_ok=True)
 
     all_tp = torch.zeros(5)
     all_fp = torch.zeros(5)
@@ -39,14 +68,17 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
         target = {k: v[0] for k, v in target.items()}
 
         result = show_prediction(img[0].detach().cpu(), output['boxes'], target)
+
         result = Image.fromarray(result.permute(1, 2, 0).numpy())
-        result.save(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/{idx}_{target['img_number']}.png")
+        result.save(f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
+                    f"{name}/{idx}_{target['img_number']}.png")
 
         prob, ious = probabilities_ious(output, target)
         probabilities.extend(prob)
         ious_list.extend(ious)
 
-        tp, fp, fn, mean_pred_iou, mean_target_iuo = calc_stats(output['boxes'], target['boxes'])
+        tp, fp, fn, mean_pred_iou, mean_target_iuo = calc_stats(output['boxes'],
+                                                                target['boxes'])
         precision, recall, f1 = calc_metrics(tp, fp, fn)
         wf1 = weightedF1(f1)
 
@@ -60,12 +92,13 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
                    'wf1': wf1.item(),
                    'prediction_count': len(output)}
 
-        metrics.update({f'tp_{[9, 8, 7, 6, 5][i]}': list(tp)[i].item() for i in range(5)})
-        metrics.update({f'fp_{[9, 8, 7, 6, 5][i]}': list(fp)[i].item() for i in range(5)})
-        metrics.update({f'fn_{[9, 8, 7, 6, 5][i]}': list(fn)[i].item() for i in range(5)})
-        metrics.update({f'precision_{[9, 8, 7, 6, 5][i]}': list(precision)[i].item() for i in range(5)})
-        metrics.update({f'recall_{[9, 8, 7, 6, 5][i]}': list(recall)[i].item() for i in range(5)})
-        metrics.update({f'f1_{[9, 8, 7, 6, 5][i]}': list(f1)[i].item() for i in range(5)})
+        iuos = [9, 8, 7, 6, 5]
+        metrics.update({f'tp_{iuos[i]}': list(tp)[i].item() for i in range(5)})
+        metrics.update({f'fp_{iuos[i]}': list(fp)[i].item() for i in range(5)})
+        metrics.update({f'fn_{iuos[i]}': list(fn)[i].item() for i in range(5)})
+        metrics.update({f'precision_{iuos[i]}': list(precision)[i].item() for i in range(5)})
+        metrics.update({f'recall_{iuos[i]}': list(recall)[i].item() for i in range(5)})
+        metrics.update({f'f1_{iuos[i]}': list(f1)[i].item() for i in range(5)})
 
         df = pd.concat([df, pd.DataFrame(metrics, index=[0])])
 
@@ -77,7 +110,8 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
     threshold_graph(torch.tensor(probabilities), torch.tensor(ious_list), name,
                     f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/")
 
-    with open(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/{name}_overview.txt", "w") as f:
+    with open(f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
+              f"{name}/{name}_overview.txt", "w") as f:
         f.write(f"true positives: {[x.item() for x in list(all_tp)]}\n")
         f.write(f"false positives: {[x.item() for x in list(all_fp)]}\n")
         f.write(f"false negatives: {[x.item() for x in list(all_fn)]}\n")
@@ -86,15 +120,22 @@ def evaluation(model, dataset: CustomDataset, name: str, cuda: int = 0):
         f.write(f"F1 score: {[x.item() for x in list(all_f1)]}\n")
         f.write(f"weighted F1 score: {all_wf1=}\n")
 
-    df.to_csv(f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/{name}.csv")
+    df.to_csv(f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
+              f"{name}/{name}.csv")
 
 
 if __name__ == '__main__':
     name = "run_cells_limit2_es"
-    model = fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, box_detections_per_img=256)
-    model.load_state_dict(torch.load(f'{Path(__file__).parent.absolute()}/../models/{name}.pt'))
+    model = fasterrcnn_resnet50_fpn(
+        weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT,
+        box_detections_per_img=256)
 
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/GloSAT/valid', 'cell')
+    model.load_state_dict(torch.load(f'{Path(__file__).parent.absolute()}/'
+                                     f'../models/{name}.pt'))
+
+    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/'
+                                 f'../data/GloSAT/valid', 'cell')
+
     print(f"{len(validdataset)=}")
 
     evaluation(model, validdataset, name=name)

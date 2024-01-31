@@ -1,9 +1,7 @@
-"""
-script to demostarte targets for model
-"""
+"""Script to demonstrate targets for model."""
+
 from typing import Optional, List, Tuple
 
-import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from pathlib import Path
@@ -11,22 +9,23 @@ import os
 
 
 def pltbox(image, boundingboxes: List[Tuple[int, int, int, int]], title: Optional[str] = None,
-           textregions: Optional[list] = None, save_as: Optional[str] = None):
+           textregions: Optional[list] = None, save_as: Optional[str] = None) -> None:
     """
-    plots bounding boxes in image
-    :param image:  image of page
-    :param boundingboxes: List of Boundingboxes to plot
-    :param title: title of the plot (optional)
-    :param textregions: Boundingboxes of textregions (optional)
-    :param save_as: name of the folder to save the image in. Images are saved in data/assets/images/  (optional)
-    :return:
+    Plots bounding boxes in image.
+
+    Args:
+        image: image of page
+        boundingboxes: List of Boundingboxes to plot
+        title: title of the plot (optional)
+        textregions: Boundingboxes of textregions (optional)
+        save_as: name of the folder to save the image in (optional)
+                 Images are saved in data/assets/images/
     """
     # plot image
     plt.imshow(image)
 
     # add bboxes
     for box in boundingboxes:
-        # with bounding box x being height and y being width (if np.flip in extract_glosat_annotation)
         ymin = box[1]
         xmin = box[0]
         ymax = box[3]
@@ -37,7 +36,7 @@ def pltbox(image, boundingboxes: List[Tuple[int, int, int, int]], title: Optiona
 
     # add textregions if existing
     if textregions:
-        for idx, textbox in enumerate(textregions):
+        for textbox in textregions:
             ymin = textbox[1]
             xmin = textbox[0]
             ymax = textbox[3]
@@ -60,14 +59,15 @@ def pltbox(image, boundingboxes: List[Tuple[int, int, int, int]], title: Optiona
     plt.show()
 
 
-def plot(folder: str, save_as: Optional[str] = None):
+def plot(folder: str, save_as: Optional[str] = None) -> None:
     """
-    shows target for model from given folder
-    :param folder: path to folder of preprocessed
-    :param save_as: name of the folder to save the images in. Images are saved in data/assets/images/  (optional)
-    :return:
-    """
+    Shows target for model from given folder.
 
+    Args:
+        folder: path to folder of preprocessed
+        save_as: name of the folder to save the images in (optional)
+                 Images are saved in data/assets/images/
+    """
     # List of bboxes for every property
     textlist = []
     has_textregion = False
@@ -115,5 +115,5 @@ def plot(folder: str, save_as: Optional[str] = None):
 
 
 if __name__ == '__main__':
-    # plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_132903/', save_as='OurExampleIMG_20190821_132903')
-    plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/119/', save_as='GloSATExample5')
+    plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/119/',
+         save_as='GloSATExample5')

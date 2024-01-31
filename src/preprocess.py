@@ -1,6 +1,4 @@
-"""
-script for extracting annotations and preprocessing images
-"""
+"""script for extracting annotations and preprocessing images."""
 
 import glob
 import os
@@ -21,15 +19,22 @@ from utils.utils import convert_coords, get_bbox
 from show_annotations import plot
 
 
-def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = True) -> (List[dict], List[dict]):
+def extract_annotation(file: str,
+                       mode: str = 'maximum',
+                       table_relative: bool = True) -> (List[dict], List[dict]):
     """
-    extracts annotation data from transkribus xml file
-    :param file: path to file
-    :param mode: mode for bounding box extraction options are 'maximum' and 'corners'
-    'maximum': creates a bounding box including all points annotated
-    'corners': creates a bounding box by connecting the corners of the annotation
-    :param table_relative: if True, bounding boxes for cell and row are calculated relative to table position
-    :return:
+    Extracts annotation data from transkribus xml file.
+
+    Args:
+        file: path to file
+        mode: mode for bounding box extraction options are 'maximum' and 'corners'
+            'maximum': creates a bounding box including all points annotated
+            'corners': creates a bounding box by connecting the corners of the annotation
+        table_relative: if True, bounding boxes for cell and row are calculated relative
+                        to table position
+
+    Returns:
+        A Tuple of two list the first containing all tables the other all text regions
     """
     tables = []
     textregions = []
@@ -39,8 +44,6 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
 
     # Parse the XML content
     soup = BeautifulSoup(xml_content, 'xml')
-
-    page = soup.find('Page')
 
     # Find all TextLine elements and extract the Baseline points
     for textline in soup.find_all('TextRegion'):
@@ -54,9 +57,11 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
         if tablecoords.find('NaN') != -1:
             continue
 
-        t = {'coords': get_bbox(convert_coords(tablecoords)), 'cells': [], 'columns': [], 'rows': []}
-        i = 0  # row counter
-        currentrow = []  # list of points in current row
+        t = {'coords': get_bbox(convert_coords(tablecoords)),
+             'cells': [],
+             'columns': [],
+             'rows': []}
+
         maxcol = 0
 
         columns = {}  # dictionary of columns and their points
@@ -68,12 +73,14 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
             maxcol = max(maxcol, int(cell['col']))
         firstcell = table.find('TableCell')
 
-        if cell.get('rowSpan') != None and int(firstcell['colSpan']) == maxcol + 1 and int(firstcell['row']) == 0:
+        if (cell.get('rowSpan') is not None and
+                int(firstcell['colSpan']) == maxcol + 1 and
+                int(firstcell['row']) == 0):
+
             coord1 = t['coords']
-            # print(t['coords'])
             coord2 = get_bbox(convert_coords(firstcell.find('Coords')['points']))
             t['coords'] = (coord1[0], coord2[3], coord1[2], coord1[3])
-            # print(t['coords'], 'h')
+
         if table_relative:
             coord = t['coords']
         else:
@@ -85,7 +92,8 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
             points = convert_coords(cell.find('Coords')['points'])
 
             # uses corner points of cell if mode is 'corners'
-            corners = [int(x) for x in cell.find('CornerPts').text.split()] if mode == 'corners' else None
+            corners = [int(x) for x in
+                       cell.find('CornerPts').text.split_dataset()] if mode == 'corners' else None
 
             # get bounding box
             bbox = get_bbox(points, corners, coord)
@@ -93,9 +101,11 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
             # add to dictionary
             x_flat = bbox[0] >= bbox[2]  # bbox flatt in x dim
             y_flat = bbox[1] >= bbox[3]  # bbox flatt in y dim
-            noHeaderCell = cell.get('rowSpan') is not None and not (int(cell['colSpan']) == maxcol + 1 and int(
-                cell['row']) == 0)  # check if Cell is a header for table
-            if not x_flat and not y_flat and noHeaderCell:
+            no_header_cell = (cell.get('rowSpan') is not None and
+                              not (int(cell['colSpan']) == maxcol + 1 and
+                                   int(cell['row']) == 0))  # check if Cell is a header for table
+
+            if not x_flat and not y_flat and no_header_cell:
                 t['cells'].append(bbox)
 
                 # calc rows
@@ -107,7 +117,8 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
 
                 # when cell over multiple rows create a join operation
                 if int(cell['rowSpan']) > 1:
-                    row_joins.extend([(int(cell['row']), int(cell['row']) + s) for s in range(1, int(cell['rowSpan']))])
+                    row_joins.extend([(int(cell['row']), int(cell['row']) + s) for s in
+                                      range(1, int(cell['rowSpan']))])
 
                 # add col number to dict
                 if int(cell['col']) in columns.keys():
@@ -117,7 +128,8 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
 
                 # when cell over multiple columns create a join operation
                 if int(cell['colSpan']) > 1:
-                    col_joins.extend([(int(cell['col']), int(cell['col']) + s) for s in range(1, int(cell['colSpan']))])
+                    col_joins.extend([(int(cell['col']), int(cell['col']) + s)
+                                      for s in range(1, int(cell['colSpan']))])
 
         # join overlapping rows
         row_set = DisjointSet(rows.keys())
@@ -143,20 +155,28 @@ def extract_annotation(file: str, mode: str = 'maximum', table_relative: bool = 
     return tables, textregions
 
 
-def preprocess(image: str, tables: List[dict], target: str, file_name: str, text: List[dict] = None) -> None:
+def preprocess(image: str,
+               tables: List[dict],
+               target: str,
+               file_name: str,
+               text: List[dict] = None) -> None:
     """
-    does preprocessing to the image and cuts outs tables. Then save image and all cut out rois as different files
-    :param image: path to image
-    :param tables: extracted annotations
-    :param target: folder to save the results in
-    :param file_name: name of image
-    :return:
+    Preprocessing.
+
+    Does preprocessing to the image and cuts outs tables. Then save image and all cut out rois
+    as different files.
+
+    Args:
+        image: path to image
+        tables: list of extracted table annotations
+        target: folder to save the results in
+        file_name: name of image
+        text: list of extracted text region annotations
     """
     # create function to convert PIL Image to torch Tensor
     to_tensor = transforms.PILToTensor()
 
     # create new folder for image files
-    # this way of splitting won't work for different folder structure, probably need to change it for our dataset
     target = f"{target}/{file_name}/"
     os.makedirs(target, exist_ok=True)
 
@@ -202,23 +222,34 @@ def preprocess(image: str, tables: List[dict], target: str, file_name: str, text
     # save text bounding boxes (naming: image_file_name _ texts . pt)
     textlist = []
     if text:
-        for idx, region in enumerate(text):
+        for region in text:
             textlist.append(region['coords'])
 
         texts = torch.tensor(textlist)
         torch.save(texts, f"{target}/" + file_name + "_textregions" + ".pt")
 
 
-def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool=True):
+def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool = True):
     """
-    takes the folder of a dataset and preprocesses it. Save preprocessed images and files with bounding boxes
-    table.pt: file with bounding boxes of tables format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
-    text.pt: file with bounding boxes of text format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
-    cell.pt: file with bounding boxes of cell format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
-    column.pt: file with bounding boxes of column format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
-    row.pt: file with bounding boxes of row format (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
-    :param targetfolder: path for saving the images
-    :return:
+    Main function for preprocessing the datasets.
+
+    Takes the folder of a dataset and preprocesses it, then saves preprocessed images and files
+    with bounding boxes.
+
+    table.pt: file with bounding boxes of tables
+    text.pt: file with bounding boxes of text
+    cell.pt: file with bounding boxes of cell
+    column.pt: file with bounding boxes of column
+    row.pt: file with bounding boxes of row
+
+    format is always (N x (top_left_x, top_left_y, bottom_right_x, bottom_right_y))
+
+    Args:
+        datafolder: path to folder containing raw annotations
+        imgfolder: path to folder containing raw images
+        targetfolder: folder to save preprocessed dataset
+        ignore_empty: if true images with no annotated tables are ignored
+
     """
     print("Processing folder, this may take a little while!")
 
@@ -227,7 +258,10 @@ def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool=
     file_names = [os.path.splitext(os.path.basename(path))[0] for path in files]
     images = [f"{imgfolder}/{x}.jpg" for x in file_names]
 
-    for file_name, file, img in tqdm(zip(file_names, files, images), desc='preprocessing', total=len(files)):
+    for file_name, file, img in tqdm(zip(file_names, files, images),
+                                     desc='preprocessing',
+                                     total=len(files)):
+
         # check for strange files
         if plt.imread(img).ndim == 3:
             table, text = extract_annotation(file)
@@ -240,20 +274,26 @@ if __name__ == '__main__':
     glosat = False
 
     if ours:
-        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/immediat-tables-main/annotations/',
-             imgfolder=f'{Path(__file__).parent.absolute()}/../data/immediat-tables-main/images/',
-             targetfolder=f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/')
-
-        # plot(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/IMG_20190821_141527/')
+        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/'
+                        f'immediat-tables-main/annotations/',
+             imgfolder=f'{Path(__file__).parent.absolute()}/../data/'
+                       f'immediat-tables-main/images/',
+             targetfolder=f'{Path(__file__).parent.absolute()}/../data/'
+                          f'Tables/preprocessed/')
 
     if glosat:
-        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/Fine/Transkribus/',
-             imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Train/JPEGImages/',
-             targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
+        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/'
+                        f'GloSAT/datasets/Train/Fine/Transkribus/',
+             imgfolder=f'{Path(__file__).parent.absolute()}/../data/'
+                       f'GloSAT/datasets/Train/JPEGImages/',
+             targetfolder=f'{Path(__file__).parent.absolute()}/../data/'
+                          f'GloSAT/preprocessed/')
 
-        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Test/Fine/Transkribus/',
-             imgfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/datasets/Test/JPEGImages/',
-             targetfolder=f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/')
+        main(datafolder=f'{Path(__file__).parent.absolute()}/../data/'
+                        f'GloSAT/datasets/Test/Fine/Transkribus/',
+             imgfolder=f'{Path(__file__).parent.absolute()}/../data/'
+                       f'GloSAT/datasets/Test/JPEGImages/',
+             targetfolder=f'{Path(__file__).parent.absolute()}/../data/'
+                          f'GloSAT/preprocessed/')
 
         plot(f'{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/')
-

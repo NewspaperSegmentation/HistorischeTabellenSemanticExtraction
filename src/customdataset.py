@@ -51,9 +51,8 @@ class CustomDataset(Dataset):
             imgnum = self.data[index].split(os.sep)[-2]
             tablenum = self.data[index].split(os.sep)[-1].split("_")[-1][-4]
             img = torch.load(self.data[index]) / 256
-            target = torch.load(
-                f"{'/'.join(self.data[index].split(os.sep)[:-1])}/{imgnum}"
-                f"_{self.objective}_{tablenum}.pt")
+            target = torch.load(f"{'/'.join(self.data[index].split(os.sep)[:-1])}/{imgnum}"
+                                f"_{self.objective}_{tablenum}.pt")
 
         if self.transforms:
             img = self.transforms(img)
@@ -80,17 +79,17 @@ if __name__ == '__main__':
 
     transform = torch.nn.Sequential(
         transforms.RandomApply(torch.nn.ModuleList([
-            transforms.ColorJitter(brightness=(0.5, 1.5), saturation=(0, 2))]),
-            p=0),
+            transforms.ColorJitter(brightness=(0.5, 1.5), saturation=(0, 2))]), p=0),
         transforms.RandomApply(torch.nn.ModuleList(
             [transforms.GaussianBlur(kernel_size=9, sigma=(2, 10))]), p=0),
         transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0),
         transforms.RandomGrayscale(p=1)
     )
 
-    dataset = CustomDataset(
-        f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/',
-        'tables', transforms=transform)
+    dataset = CustomDataset(f'{Path(__file__).parent.absolute()}/../data/Tables/preprocessed/',
+                            'tables',
+                            transforms=transform)
+
     img, target = dataset[3]
 
     result = Image.fromarray(
