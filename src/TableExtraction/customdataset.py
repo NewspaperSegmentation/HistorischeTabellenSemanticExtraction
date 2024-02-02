@@ -3,17 +3,18 @@
 import glob
 import os
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Union, Dict
 
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.transforms.v2 import Transform
 
 
-class CustomDataset(Dataset):
+class CustomDataset(Dataset):   # type: ignore
     """Dataset Class for training."""
 
-    def __init__(self, path: str, objective: str, transforms=None) -> None:
+    def __init__(self, path: str, objective: str, transforms: Transform = None) -> None:
         """
         Dataset Class for training.
 
@@ -30,7 +31,7 @@ class CustomDataset(Dataset):
         self.objective = objective
         self.transforms = transforms
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, dict]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, Dict[str, Union[torch.Tensor, str]]]:
         """
         Returns image and target (boxes, labels, img_number) from dataset.
 

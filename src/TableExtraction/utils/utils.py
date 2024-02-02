@@ -21,6 +21,9 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
 
     Returns:
             torch.Tensor of image with bounding boxes
+
+    Raises:
+        ValueError: if image tensor doesn't have 3 (color) channel in dim 0 and 2
     """
     # move color channel first if color channel is last
     image = image.permute(2, 0, 1) if image.shape[2] == 3 else image
@@ -49,7 +52,7 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
 
 
 def plot_image(
-    image: Union[torch.Tensor, np.ndarray],
+    image: Union[torch.Tensor, np.ndarray],     # type: ignore
     boxes: Dict[str, torch.Tensor],
     title: Optional[str] = None,
     save_path: Optional[str] = None,
@@ -67,7 +70,7 @@ def plot_image(
         image = torch.tensor(image)
 
     # create image with annotation
-    image = get_image(image, boxes)     # type: ignore
+    image = get_image(image, boxes)
 
     # plot image
     plt.imshow(image.permute(1, 2, 0))
@@ -95,7 +98,6 @@ def plot_annotations(folder: str, save_as: Optional[str] = None) -> None:
         save_as: name of the folder to save the images in (optional)
                  Images are saved in data/assets/images/
     """
-
     image = [img for img in glob.glob(f"{folder}/*.jpg") if 'table' not in img][0]
     tables = sorted(glob.glob(f"{folder}/*_table_*.jpg"), key=lambda x: int(x[-5]))
     tableregions = list(glob.glob(f"{folder}/*_tables.pt"))
@@ -128,12 +130,21 @@ def plot_annotations(folder: str, save_as: Optional[str] = None) -> None:
 
     # plot cells, rows and columns
     for img, cells, rows, cols in zip(tables, cells_list, rows_list, cols_list):
-        plot_image(plt.imread(img), boxes={"cells": torch.load(cells)}, title="cells", save_path=save_as)
-        plot_image(plt.imread(img), boxes={"rows": torch.load(rows)}, title="rows", save_path=save_as)
-        plot_image(plt.imread(img), boxes={"columns": torch.load(cols)}, title="columns", save_path=save_as)
+        plot_image(plt.imread(img),
+                   boxes={"cells": torch.load(cells)},
+                   title="cells",
+                   save_path=save_as)
+        plot_image(plt.imread(img),
+                   boxes={"rows": torch.load(rows)},
+                   title="rows",
+                   save_path=save_as)
+        plot_image(plt.imread(img),
+                   boxes={"columns": torch.load(cols)},
+                   title="columns",
+                   save_path=save_as)
 
 
-def convert_coords(string: str) -> np.ndarray:
+def convert_coords(string: str) -> np.ndarray:  # type: ignore
     """
     Takes a string of coordinates from a xml file and converts it to a numpy array.
 
@@ -150,7 +161,7 @@ def convert_coords(string: str) -> np.ndarray:
 
 
 def get_bbox(
-    points: np.ndarray,
+    points: np.ndarray,     # type: ignore
     corners: Union[None, List[int]] = None,
     tablebbox: Optional[Tuple[int, int, int, int]] = None,
 ) -> Tuple[int, int, int, int]:
@@ -184,4 +195,3 @@ def get_bbox(
 if __name__ == '__main__':
     import glob
     plot_annotations("../../../data/GloSAT/preprocessed/0")
-

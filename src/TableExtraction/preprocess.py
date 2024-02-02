@@ -18,8 +18,8 @@ from utils.utils import convert_coords, get_bbox, plot_annotations
 
 
 def extract_annotation(
-    file: str, mode: str = "maximum", table_relative: bool = True
-) -> Tuple[List[dict], List[dict]]:
+        file: str, mode: str = "maximum", table_relative: bool = True
+) -> Tuple[List[Dict[str, List[List[int]]]], List[Dict[str, List[List[int]]]]]:
     """
     Extracts annotation data from transkribus xml file.
 
@@ -37,8 +37,8 @@ def extract_annotation(
     tables = []
     textregions = []
 
-    with open(file, "r", encoding="utf-8") as file:     # type: ignore
-        xml_content = file.read()                       # type: ignore
+    with open(file, "r", encoding="utf-8") as file:  # type: ignore
+        xml_content = file.read()  # type: ignore
 
     # Parse the XML content
     soup = BeautifulSoup(xml_content, "xml")
@@ -76,11 +76,10 @@ def extract_annotation(
         firstcell = table.find("TableCell")
 
         if (
-            cell.get("rowSpan") is not None and
+                cell.get("rowSpan") is not None and
                 int(firstcell["colSpan"]) == maxcol + 1 and
                 int(firstcell["row"]) == 0
         ):
-
             coord1 = t["coords"]
             coord2 = get_bbox(convert_coords(firstcell.find("Coords")["points"]))
             t["coords"] = (coord1[0], coord2[3], coord1[2], coord1[3])
@@ -108,9 +107,10 @@ def extract_annotation(
             # add to dictionary
             x_flat = bbox[0] >= bbox[2]  # bbox flatt in x dim
             y_flat = bbox[1] >= bbox[3]  # bbox flatt in y dim
-            no_header_cell = cell.get("rowSpan") is not None and not (
-                int(cell["colSpan"]) == maxcol + 1 and int(cell["row"]) == 0
-            )  # check if Cell is a header for table
+
+            # check if Cell is a header for table
+            no_header_cell = (cell.get("rowSpan") is not None and
+                              not (int(cell["colSpan"]) == maxcol + 1 and int(cell["row"]) == 0))
 
             if not x_flat and not y_flat and no_header_cell:
                 t["cells"].append(bbox)
@@ -171,7 +171,10 @@ def extract_annotation(
 
 
 def preprocess(
-    image: str, tables: List[dict], target: str, file_name: str, text: Optional[List[dict]] = None
+        image: str,
+        tables: List[Dict[str, List[List[int]]]],
+        target: str, file_name: str,
+        text: Optional[List[Dict[str, List[List[int]]]]] = None
 ) -> None:
     """
     Preprocessing.
@@ -244,7 +247,7 @@ def preprocess(
         torch.save(texts, f"{target}/" + file_name + "_textregions" + ".pt")
 
 
-def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool = True):
+def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool = True) -> None:
     """
     Main function for preprocessing the datasets.
 
@@ -274,7 +277,7 @@ def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool 
     images = [f"{imgfolder}/{x}.jpg" for x in file_names]
 
     for file_name, file, img in tqdm(
-        zip(file_names, files, images), desc="preprocessing", total=len(files)
+            zip(file_names, files, images), desc="preprocessing", total=len(files)
     ):
 
         # check for strange files
@@ -291,30 +294,30 @@ if __name__ == "__main__":
     if ours:
         main(
             datafolder=f"{Path(__file__).parent.absolute()}/../data/"
-            f"immediat-tables-main/annotations/",
+                       f"immediat-tables-main/annotations/",
             imgfolder=f"{Path(__file__).parent.absolute()}/../data/"
-            f"immediat-tables-main/images/",
+                      f"immediat-tables-main/images/",
             targetfolder=f"{Path(__file__).parent.absolute()}/../data/"
-            f"Tables/preprocessed/",
+                         f"Tables/preprocessed/",
         )
 
     if glosat:
         main(
             datafolder=f"{Path(__file__).parent.absolute()}/../data/"
-            f"GloSAT/datasets/Train/Fine/Transkribus/",
+                       f"GloSAT/datasets/Train/Fine/Transkribus/",
             imgfolder=f"{Path(__file__).parent.absolute()}/../data/"
-            f"GloSAT/datasets/Train/JPEGImages/",
+                      f"GloSAT/datasets/Train/JPEGImages/",
             targetfolder=f"{Path(__file__).parent.absolute()}/../data/"
-            f"GloSAT/preprocessed/",
+                         f"GloSAT/preprocessed/",
         )
 
         main(
             datafolder=f"{Path(__file__).parent.absolute()}/../data/"
-            f"GloSAT/datasets/Test/Fine/Transkribus/",
+                       f"GloSAT/datasets/Test/Fine/Transkribus/",
             imgfolder=f"{Path(__file__).parent.absolute()}/../data/"
-            f"GloSAT/datasets/Test/JPEGImages/",
+                      f"GloSAT/datasets/Test/JPEGImages/",
             targetfolder=f"{Path(__file__).parent.absolute()}/../data/"
-            f"GloSAT/preprocessed/",
+                         f"GloSAT/preprocessed/",
         )
 
         plot_annotations(

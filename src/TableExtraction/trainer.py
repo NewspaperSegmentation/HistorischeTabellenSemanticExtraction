@@ -2,13 +2,13 @@
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import torch
-from torch.optim import AdamW
+from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter   # type: ignore
 from torchvision.models.detection import (
     FasterRCNN,
     FasterRCNN_ResNet50_FPN_Weights,
@@ -27,10 +27,10 @@ class Trainer:
 
     def __init__(
             self,
-            model,
+            model: FasterRCNN,
             traindataset: CustomDataset,
             testdataset: CustomDataset,
-            optimizer,
+            optimizer: Optimizer,
             name: str,
             cuda: int = 0,
     ) -> None:
@@ -53,27 +53,28 @@ class Trainer:
         print(f"using {self.device}")
 
         self.model = model.to(self.device)
+        self.optimizer = optimizer
+
         self.trainloader = DataLoader(
             traindataset, batch_size=1, shuffle=False, num_workers=0
         )
         self.testloader = DataLoader(
             testdataset, batch_size=1, shuffle=False, num_workers=0
         )
-        self.optimizer = optimizer(self.model.parameters(), lr=LR)
 
-        self.bestavrgloss = None
+        self.bestavrgloss: Union[float, None] = None
         self.epoch = 0
         self.name = name
 
         # setup tensor board
         train_log_dir = f"{Path(__file__).parent.absolute()}/../logs/runs/{self.name}"
         print(f"{train_log_dir=}")
-        self.writer = SummaryWriter(train_log_dir)
+        self.writer = SummaryWriter(train_log_dir)  # type: ignore
 
         self.example_image, self.example_target = testdataset[0]
         self.train_example_image, self.train_example_target = traindataset[0]
 
-    def save(self, name: str = ""):
+    def save(self, name: str = "") -> None:
         """
         Save the model in models folder.
 
@@ -86,7 +87,7 @@ class Trainer:
             f"{Path(__file__).parent.absolute()}/../models/{name}",
         )
 
-    def load(self, name: str = ""):
+    def load(self, name: str = "") -> None:
         """
         Load the given model.
 
@@ -97,7 +98,7 @@ class Trainer:
             torch.load(f"{Path(__file__).parent.absolute()}/../models/{name}.pt")
         )
 
-    def train(self, epoch: int):
+    def train(self, epoch: int) -> None:
         """
         Train model for given number of epochs.
 
@@ -117,7 +118,7 @@ class Trainer:
         # save model after training
         self.save(f"{self.name}_end.pt")
 
-    def train_epoch(self):
+    def train_epoch(self) -> None:
         """Trains one epoch."""
         loss_lst = []
         loss_classifier_lst = []
@@ -148,27 +149,31 @@ class Trainer:
 
         # logging
         self.writer.add_scalar(
-            "Training/loss", np.mean(loss_lst), global_step=self.epoch
-        )
+            "Training/loss",
+            np.mean(loss_lst),
+            global_step=self.epoch
+        )       # type: ignore
         self.writer.add_scalar(
             "Training/loss_classifier",
             np.mean(loss_classifier_lst),
             global_step=self.epoch,
-        )
+        )   # type: ignore
         self.writer.add_scalar(
-            "Training/loss_box_reg", np.mean(loss_box_reg_lst), global_step=self.epoch
-        )
+            "Training/loss_box_reg",
+            np.mean(loss_box_reg_lst),
+            global_step=self.epoch
+        )   # type: ignore
         self.writer.add_scalar(
             "Training/loss_objectness",
             np.mean(loss_objectness_lst),
             global_step=self.epoch,
-        )
+        )   # type: ignore
         self.writer.add_scalar(
             "Training/loss_rpn_box_reg",
             np.mean(loss_rpn_box_reg_lst),
             global_step=self.epoch,
-        )
-        self.writer.flush()
+        )   # type: ignore
+        self.writer.flush()         # type: ignore
 
         del (
             loss_lst,
@@ -178,20 +183,18 @@ class Trainer:
             loss_rpn_box_reg_lst,
         )
 
-    def valid(self):
+    def valid(self) -> float:
         """
         Validates current model on validation set.
 
         Returns:
             current loss
         """
-        loss, loss_classifier, loss_box_reg, loss_objectness, loss_rpn_box_reg = (
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
+        loss = []
+        loss_classifier = []
+        loss_box_reg = []
+        loss_objectness = []
+        loss_rpn_box_reg = []
 
         for img, target in tqdm(self.testloader, desc="validation"):
             img = img.to(self.device)
@@ -211,20 +214,32 @@ class Trainer:
         meanloss = np.mean(loss)
 
         # logging
-        self.writer.add_scalar("Valid/loss", meanloss, global_step=self.epoch)
         self.writer.add_scalar(
-            "Valid/loss_classifier", np.mean(loss_classifier), global_step=self.epoch
-        )
+            "Valid/loss",
+            meanloss,
+            global_step=self.epoch
+        )   # type: ignore
         self.writer.add_scalar(
-            "Valid/loss_box_reg", np.mean(loss_box_reg), global_step=self.epoch
-        )
+            "Valid/loss_classifier",
+            np.mean(loss_classifier),
+            global_step=self.epoch
+        )   # type: ignore
         self.writer.add_scalar(
-            "Valid/loss_objectness", np.mean(loss_objectness), global_step=self.epoch
-        )
+            "Valid/loss_box_reg",
+            np.mean(loss_box_reg),
+            global_step=self.epoch
+        )   # type: ignore
         self.writer.add_scalar(
-            "Valid/loss_rpn_box_reg", np.mean(loss_rpn_box_reg), global_step=self.epoch
-        )
-        self.writer.flush()
+            "Valid/loss_objectness",
+            np.mean(loss_objectness),
+            global_step=self.epoch
+        )   # type: ignore
+        self.writer.add_scalar(
+            "Valid/loss_rpn_box_reg",
+            np.mean(loss_rpn_box_reg),
+            global_step=self.epoch
+        )   # type: ignore
+        self.writer.flush()   # type: ignore
 
         self.model.eval()
 
@@ -237,7 +252,7 @@ class Trainer:
         result = get_image(self.train_example_image, boxes)
         self.writer.add_image(
             "Training/example", result[:, ::2, ::2], global_step=self.epoch
-        )
+        )   # type: ignore
 
         # predict example form validation set
         pred = self.model([self.example_image.to(self.device)])
@@ -248,7 +263,7 @@ class Trainer:
         result = get_image(self.example_image, boxes)
         self.writer.add_image(
             "Valid/example", result[:, ::2, ::2], global_step=self.epoch
-        )
+        )   # type: ignore
 
         self.model.train()
 
@@ -324,7 +339,7 @@ if __name__ == "__main__":
     print(f"{len(traindataset)=}")
     print(f"{len(validdataset)=}")
 
-    optimizer = AdamW
+    optimizer = AdamW(model.parameters(), lr=LR)
 
     trainer = Trainer(model, traindataset, validdataset, optimizer, name)
     trainer.train(10)

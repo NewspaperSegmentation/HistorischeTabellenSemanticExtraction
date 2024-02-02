@@ -11,7 +11,7 @@ def calc_stats(
         pred: torch.Tensor,
         target: torch.Tensor,
         iou_thresholds: Optional[Union[float, torch.Tensor]] = None,
-):
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calculates true positives, false positives, false negatives, precision, recall and f1.
 
