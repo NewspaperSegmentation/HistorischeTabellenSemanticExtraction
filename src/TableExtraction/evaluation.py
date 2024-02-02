@@ -13,15 +13,15 @@ from torchvision.models.detection import (
 )
 from tqdm import tqdm
 
-from src.customdataset import CustomDataset
-from src.utils.metrics import (
+from src.TableExtraction.customdataset import CustomDataset
+from src.TableExtraction.utils.metrics import (
     calc_metrics,
     calc_stats,
     probabilities_ious,
     threshold_graph,
     weighted_f1,
 )
-from src.utils.utils import get_image
+from src.TableExtraction.utils.utils import get_image
 
 
 def evaluation(

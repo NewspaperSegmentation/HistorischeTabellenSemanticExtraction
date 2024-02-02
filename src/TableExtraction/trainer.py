@@ -16,8 +16,8 @@ from torchvision.models.detection import (
 )
 from tqdm import tqdm
 
-from src.customdataset import CustomDataset
-from src.utils.utils import get_image
+from src.TableExtraction.customdataset import CustomDataset
+from src.TableExtraction.utils.utils import get_image
 
 LR = 0.00001
 
