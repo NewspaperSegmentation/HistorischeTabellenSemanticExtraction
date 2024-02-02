@@ -1,6 +1,6 @@
 """Implementation of used metrics."""
 
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Tuple, Dict
 
 import matplotlib.pyplot as plt
 import torch
@@ -47,7 +47,10 @@ def calc_stats(
     return tp, fp, fn, mean_pred_iou, mean_target_iuo
 
 
-def calc_metrics(tp: torch.Tensor, fp: torch.Tensor, fn: torch.Tensor) -> (float, float, float):
+def calc_metrics(tp: torch.Tensor,
+                 fp: torch.Tensor,
+                 fn: torch.Tensor
+                 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Calcs precision, recall and f1 metric.
 
@@ -98,7 +101,9 @@ def weighted_f1(
     return weighted_average
 
 
-def probabilities_ious(pred: torch.Tensor, target: torch.Tensor) -> (List[float], List[float]):
+def probabilities_ious(pred: Dict[str, torch.Tensor],
+                       target: Dict[str, torch.Tensor],
+                       ) -> Tuple[List[float], List[float]]:
     """
     Calculates the probability and the achieved IoU scores of the predicted bounding boxes.
 

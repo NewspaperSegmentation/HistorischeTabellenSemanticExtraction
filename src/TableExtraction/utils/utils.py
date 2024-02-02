@@ -40,7 +40,7 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
 
 
 def plot_image(
-    image: torch.Tensor,
+    image: Union[torch.Tensor, np.ndarray],
     boxes: Dict[str, torch.Tensor],
     title: Optional[str] = None,
     save_path: Optional[str] = None,
@@ -54,8 +54,11 @@ def plot_image(
         title: title of the plot
         save_path: path to save the plot as image
     """
+    if isinstance(image, np.ndarray):
+        image = torch.tensor(image)
+
     # create image with annotation
-    image = get_image(image, boxes)
+    image = get_image(image, boxes)     # type: ignore
 
     # plot image
     plt.imshow(image)
@@ -117,7 +120,7 @@ def plot_annotations(folder: str, save_as: Optional[str] = None) -> None:
     # plot tables
     plot_image(
         plt.imread(folder + sorted(files)[0]),
-        tablelist,
+        {"tables": tablelist},
         title="tables",
         save_path=save_as,
     )
@@ -133,13 +136,9 @@ def plot_annotations(folder: str, save_as: Optional[str] = None) -> None:
 
     # plot cells, rows and columns
     for idx, img in enumerate(imglist):
-        plot_image(
-            img, boxes={"cells": celllist[idx]}, title="cells", save_path=save_as
-        )
+        plot_image(img, boxes={"cells": celllist[idx]}, title="cells", save_path=save_as)
         plot_image(img, boxes={"rows": rowlist[idx]}, title="rows", save_path=save_as)
-        plot_image(
-            img, boxes={"columns": collist[idx]}, title="columns", save_path=save_as
-        )
+        plot_image(img, boxes={"columns": collist[idx]}, title="columns", save_path=save_as)
 
 
 def convert_coords(string: str) -> np.ndarray:
@@ -161,7 +160,7 @@ def convert_coords(string: str) -> np.ndarray:
 def get_bbox(
     points: np.ndarray,
     corners: Union[None, List[int]] = None,
-    tablebbox: Tuple[int, int, int, int] = None,
+    tablebbox: Optional[Tuple[int, int, int, int]] = None,
 ) -> Tuple[int, int, int, int]:
     """
     Creates a bounding box around all given points.
