@@ -21,7 +21,7 @@ def download_glosat() -> None:
     request.urlretrieve(url, file)
 
     # extract zip file
-    with zipfile.ZipFile(file, 'r') as zipper:
+    with zipfile.ZipFile(file, "r") as zipper:
         folder = Path(target)
         folder.mkdir(exist_ok=True)
         zipper.extractall(path=folder)
@@ -36,7 +36,7 @@ def download_ours() -> None:
     pass
 
 
-def main(dataset: str = 'GloSAT') -> None:
+def main(dataset: str = "GloSAT") -> None:
     """
     Download script for datasets. 'ours' currently not implemented.
 
@@ -46,14 +46,14 @@ def main(dataset: str = 'GloSAT') -> None:
     Raises:
         Exception: if there is no download script for the given dataset
     """
-    if dataset.lower() == 'glosat':
+    if dataset.lower() == "glosat":
         download_glosat()
-    elif dataset.lower() == 'ours':
+    elif dataset.lower() == "ours":
         download_ours()
 
     else:
-        raise Exception('No download script for this dataset!')
+        raise Exception("No download script for this dataset!")
 
 
-if __name__ == '__main__':
-    main('GloSAT')
+if __name__ == "__main__":
+    main("GloSAT")

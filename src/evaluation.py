@@ -5,25 +5,28 @@ from pathlib import Path
 
 import pandas as pd
 import torch
-from torch.utils.data import DataLoader
-from torchvision.models.detection import (fasterrcnn_resnet50_fpn,
-                                          FasterRCNN_ResNet50_FPN_Weights)
 from PIL import Image
+from torch.utils.data import DataLoader
+from torchvision.models.detection import (
+    FasterRCNN_ResNet50_FPN_Weights,
+    fasterrcnn_resnet50_fpn,
+)
 from tqdm import tqdm
 
 from src.customdataset import CustomDataset
-from src.utils.metrics import (weightedF1,
-                               calc_stats,
-                               calc_metrics,
-                               threshold_graph,
-                               probabilities_ious)
+from src.utils.metrics import (
+    calc_metrics,
+    calc_stats,
+    probabilities_ious,
+    threshold_graph,
+    weighted_f1,
+)
 from src.utils.utils import get_image
 
 
-def evaluation(model: torch.nn.Module,
-               dataset: CustomDataset,
-               name: str,
-               cuda: int = 0) -> None:
+def evaluation(
+    model: torch.nn.Module, dataset: CustomDataset, name: str, cuda: int = 0
+) -> None:
     """
     Evaluates the given model on the given dataset.
 
@@ -38,19 +41,19 @@ def evaluation(model: torch.nn.Module,
     if torch.cuda.is_available():
         device = torch.device(f"cuda:{cuda}")
     else:
-        device = torch.device('cpu')
+        device = torch.device("cpu")
 
     model.to(device)
     model.eval()
 
-    df = pd.DataFrame(columns=['image_number',
-                               'mean_pred_iou',
-                               'mean_target_iuo',
-                               'wf1'],
-                      index=[0])
+    df = pd.DataFrame(
+        columns=["image_number", "mean_pred_iou", "mean_target_iuo", "wf1"], index=[0]
+    )
 
-    os.makedirs(f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
-                f"{name}/", exist_ok=True)
+    os.makedirs(
+        f"{Path(__file__).parent.absolute()}/../logs/evaluation/" f"{name}/",
+        exist_ok=True,
+    )
 
     all_tp = torch.zeros(5)
     all_fp = torch.zeros(5)
@@ -60,59 +63,73 @@ def evaluation(model: torch.nn.Module,
     ious_list = []
 
     idx = 0
-    for img, target in tqdm(dataloader, desc='evaluation'):
+    for img, target in tqdm(dataloader, desc="evaluation"):
         img = img.to(device)
 
         output = model([img[0]])
         output = {k: v.detach().cpu() for k, v in output[0].items()}
         target = {k: v[0] for k, v in target.items()}
 
-        boxes = {'prediction': output['boxes'], 'ground truth': target['boxes']}
+        boxes = {"prediction": output["boxes"], "ground truth": target["boxes"]}
         result = get_image(img.detach().cpu(), boxes)
 
         result = Image.fromarray(result.permute(1, 2, 0).numpy())
-        result.save(f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
-                    f"{name}/{idx}_{target['img_number']}.png")
+        result.save(
+            f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
+            f"{name}/{idx}_{target['img_number']}.png"
+        )
 
         prob, ious = probabilities_ious(output, target)
         probabilities.extend(prob)
         ious_list.extend(ious)
 
-        tp, fp, fn, mean_pred_iou, mean_target_iuo = calc_stats(output['boxes'],
-                                                                target['boxes'])
+        tp, fp, fn, mean_pred_iou, mean_target_iuo = calc_stats(
+            output["boxes"], target["boxes"]
+        )
         precision, recall, f1 = calc_metrics(tp, fp, fn)
-        wf1 = weightedF1(f1)
+        wf1 = weighted_f1(f1)
 
         all_tp += tp
         all_fp += fp
         all_fn += fn
 
-        metrics = {'image_number': target['img_number'],
-                   'mean_pred_iou': mean_pred_iou.item(),
-                   'mean_target_iuo': mean_target_iuo.item(),
-                   'wf1': wf1.item(),
-                   'prediction_count': len(output)}
+        metrics = {
+            "image_number": target["img_number"],
+            "mean_pred_iou": mean_pred_iou.item(),
+            "mean_target_iuo": mean_target_iuo.item(),
+            "wf1": wf1.item(),
+            "prediction_count": len(output),
+        }
 
         iuos = [9, 8, 7, 6, 5]
-        metrics.update({f'tp_{iuos[i]}': list(tp)[i].item() for i in range(5)})
-        metrics.update({f'fp_{iuos[i]}': list(fp)[i].item() for i in range(5)})
-        metrics.update({f'fn_{iuos[i]}': list(fn)[i].item() for i in range(5)})
-        metrics.update({f'precision_{iuos[i]}': list(precision)[i].item() for i in range(5)})
-        metrics.update({f'recall_{iuos[i]}': list(recall)[i].item() for i in range(5)})
-        metrics.update({f'f1_{iuos[i]}': list(f1)[i].item() for i in range(5)})
+        metrics.update({f"tp_{iuos[i]}": list(tp)[i].item() for i in range(5)})
+        metrics.update({f"fp_{iuos[i]}": list(fp)[i].item() for i in range(5)})
+        metrics.update({f"fn_{iuos[i]}": list(fn)[i].item() for i in range(5)})
+        metrics.update(
+            {f"precision_{iuos[i]}": list(precision)[i].item() for i in range(5)}
+        )
+        metrics.update({f"recall_{iuos[i]}": list(recall)[i].item() for i in range(5)})
+        metrics.update({f"f1_{iuos[i]}": list(f1)[i].item() for i in range(5)})
 
         df = pd.concat([df, pd.DataFrame(metrics, index=[0])])
 
         idx += 1
 
     all_precision, all_recall, all_f1 = calc_metrics(all_tp, all_fp, all_fn)
-    all_wf1 = weightedF1(all_f1)
+    all_wf1 = weighted_f1(all_f1)
 
-    threshold_graph(torch.tensor(probabilities), torch.tensor(ious_list), name,
-                    f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/")
+    threshold_graph(
+        torch.tensor(probabilities),
+        torch.tensor(ious_list),
+        name,
+        f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/",
+    )
 
-    with open(f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
-              f"{name}/{name}_overview.txt", "w") as f:
+    with open(
+        f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
+        f"{name}/{name}_overview.txt",
+        "w",
+    ) as f:
         f.write(f"true positives: {[x.item() for x in list(all_tp)]}\n")
         f.write(f"false positives: {[x.item() for x in list(all_fp)]}\n")
         f.write(f"false negatives: {[x.item() for x in list(all_fn)]}\n")
@@ -121,21 +138,24 @@ def evaluation(model: torch.nn.Module,
         f.write(f"F1 score: {[x.item() for x in list(all_f1)]}\n")
         f.write(f"weighted F1 score: {all_wf1=}\n")
 
-    df.to_csv(f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
-              f"{name}/{name}.csv")
+    df.to_csv(
+        f"{Path(__file__).parent.absolute()}/../logs/evaluation/" f"{name}/{name}.csv"
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     name = "run_cells_limit2_es"
     model = fasterrcnn_resnet50_fpn(
-        weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT,
-        box_detections_per_img=256)
+        weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, box_detections_per_img=256
+    )
 
-    model.load_state_dict(torch.load(f'{Path(__file__).parent.absolute()}/'
-                                     f'../models/{name}.pt'))
+    model.load_state_dict(
+        torch.load(f"{Path(__file__).parent.absolute()}/" f"../models/{name}.pt")
+    )
 
-    validdataset = CustomDataset(f'{Path(__file__).parent.absolute()}/'
-                                 f'../data/GloSAT/valid', 'cell')
+    validdataset = CustomDataset(
+        f"{Path(__file__).parent.absolute()}/" f"../data/GloSAT/valid", "cell"
+    )
 
     print(f"{len(validdataset)=}")
 

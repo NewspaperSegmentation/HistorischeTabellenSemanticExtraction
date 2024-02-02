@@ -1,11 +1,12 @@
 """Splits data into training, validation and test split."""
 
+import glob
 import os
 import random
-import glob
 import shutil
+from typing import List, Tuple
+
 from tqdm import tqdm
-from typing import Tuple, List
 
 
 def copy(folder: str, split: List[str], name: str) -> None:
@@ -17,11 +18,11 @@ def copy(folder: str, split: List[str], name: str) -> None:
         split: list of files to copy
         name: name of the new folder (should be 'train', 'valid', 'test')
     """
-    os.makedirs(f'{folder}/../{name}')
+    os.makedirs(f"{folder}/../{name}")
 
-    for f in tqdm(split, desc='copying'):
+    for f in tqdm(split, desc="copying"):
         numb = f.split(os.sep)[-1]
-        shutil.copytree(f, f'{folder}/../{name}/{numb}')
+        shutil.copytree(f, f"{folder}/../{name}/{numb}")
 
 
 def split_dataset(folder: str, split: Tuple[float, float, float]) -> None:
@@ -60,5 +61,5 @@ def split_dataset(folder: str, split: Tuple[float, float, float]) -> None:
     copy(folder, test, "test")
 
 
-if __name__ == '__main__':
-    split_dataset("../data/Tables/preprocessed/", (.8, .1, .1))
+if __name__ == "__main__":
+    split_dataset("../data/Tables/preprocessed/", (0.8, 0.1, 0.1))
