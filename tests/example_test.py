@@ -1,6 +1,6 @@
-""" This is an example test"""
+"""This is an example test."""
 
 
-def test_fun():
+def general_test():
+    """Tests the general functionality of predicting tables."""
     # Implement a test here.
-    return True
