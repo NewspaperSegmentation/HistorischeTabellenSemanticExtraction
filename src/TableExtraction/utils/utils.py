@@ -22,6 +22,17 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
     Returns:
             torch.Tensor of image with bounding boxes
     """
+    # move color channel first if color channel is last
+    image = image.permute(2, 0, 1) if image.shape[2] == 3 else image
+
+    # if first dim doesn't have 3 raise Error
+    if image.shape[0] != 3:
+        raise ValueError("Only RGB image, need to have 3 channels in dim 0 or 2")
+
+    # map [0, 1] to [0, 255]
+    if image.max() <= 1.0:
+        image *= 256
+
     colorplate = ["green", "red", "blue", "yellow"]
 
     colors = []
@@ -32,9 +43,7 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
         colors.extend([colorplate[idx]] * len(item))
         coords = torch.vstack((coords, item))
 
-    result = draw_bounding_boxes(
-        (image * 256).to(torch.uint8), coords, colors=colors, width=5
-    )
+    result = draw_bounding_boxes(image.to(torch.uint8), coords, colors=colors, width=5)
 
     return result
 
@@ -61,7 +70,7 @@ def plot_image(
     image = get_image(image, boxes)     # type: ignore
 
     # plot image
-    plt.imshow(image)
+    plt.imshow(image.permute(1, 2, 0))
 
     # add title if existing
     if title is not None:
@@ -82,63 +91,46 @@ def plot_annotations(folder: str, save_as: Optional[str] = None) -> None:
     Shows target for model from given folder.
 
     Args:
-        folder: path to folder of preprocessed
+        folder: path to folder of preprocessed example
         save_as: name of the folder to save the images in (optional)
                  Images are saved in data/assets/images/
     """
-    # List of bboxes for every property
-    textlist = []
-    has_textregion = False
-    tablelist = []
-    celllist = []
-    rowlist = []
-    collist = []
-    imglist = []
 
-    # iterate over files in folder and extract bboxes
-    files = os.listdir(folder)
-    for filename in sorted(files):
-        if "textregions" in filename:
-            textlist = torch.load(folder + filename)
-            has_textregion = True
+    image = [img for img in glob.glob(f"{folder}/*.jpg") if 'table' not in img][0]
+    tables = sorted(glob.glob(f"{folder}/*_table_*.jpg"), key=lambda x: int(x[-5]))
+    tableregions = list(glob.glob(f"{folder}/*_tables.pt"))
+    textregions = list(glob.glob(f"{folder}/*_textregions.pt"))
+    cells_list = sorted(glob.glob(f"{folder}/*_cell_*.pt"), key=lambda x: int(x[-4]))
+    cols_list = sorted(glob.glob(f"{folder}/*_col_*.pt"), key=lambda x: int(x[-4]))
+    rows_list = sorted(glob.glob(f"{folder}/*_row_*.pt"), key=lambda x: int(x[-4]))
 
-        if "table" in filename and filename.endswith(".jpg"):
-            imglist.append(plt.imread(folder + filename))
-
-        if "table" in filename and filename.endswith(".pt"):
-            tablelist = torch.load(folder + filename)
-
-        if "cell" in filename and filename.endswith(".pt"):
-            celllist.append(torch.load(folder + filename))
-
-        if "row" in filename and filename.endswith(".pt"):
-            rowlist.append(torch.load(folder + filename))
-
-        if "col" in filename and filename.endswith(".pt"):
-            collist.append(torch.load(folder + filename))
+    pass
 
     # plot tables
-    plot_image(
-        plt.imread(folder + sorted(files)[0]),
-        {"tables": tablelist},
-        title="tables",
-        save_path=save_as,
-    )
+    if tableregions:
+        print(image)
+        plot_image(
+            plt.imread(image),
+            {"tables": torch.load(tableregions[0])},
+            title="tables",
+            save_path=save_as,
+        )
 
     # plot tables and textregions if textregions exists
-    if has_textregion:
+    if tableregions and textregions:
         plot_image(
-            plt.imread(folder + sorted(files)[0]),
-            boxes={"tables": tablelist, "textregions": textlist},
+            plt.imread(image),
+            boxes={"tables": torch.load(tableregions[0]),
+                   "textregions": torch.load(textregions[0])},
             title="tables and textregions",
             save_path=save_as,
         )
 
     # plot cells, rows and columns
-    for idx, img in enumerate(imglist):
-        plot_image(img, boxes={"cells": celllist[idx]}, title="cells", save_path=save_as)
-        plot_image(img, boxes={"rows": rowlist[idx]}, title="rows", save_path=save_as)
-        plot_image(img, boxes={"columns": collist[idx]}, title="columns", save_path=save_as)
+    for img, cells, rows, cols in zip(tables, cells_list, rows_list, cols_list):
+        plot_image(plt.imread(img), boxes={"cells": torch.load(cells)}, title="cells", save_path=save_as)
+        plot_image(plt.imread(img), boxes={"rows": torch.load(rows)}, title="rows", save_path=save_as)
+        plot_image(plt.imread(img), boxes={"columns": torch.load(cols)}, title="columns", save_path=save_as)
 
 
 def convert_coords(string: str) -> np.ndarray:
@@ -187,3 +179,9 @@ def get_bbox(
         y_max -= tablebbox[1]
 
     return x_min, y_min, x_max, y_max
+
+
+if __name__ == '__main__':
+    import glob
+    plot_annotations("../../../data/GloSAT/preprocessed/0")
+
