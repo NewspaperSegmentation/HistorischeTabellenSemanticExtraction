@@ -25,7 +25,7 @@ from src.TableExtraction.utils.utils import get_image
 
 
 def evaluation(
-    model: torch.nn.Module, dataset: CustomDataset, name: str, cuda: int = 0
+        model: torch.nn.Module, dataset: CustomDataset, name: str, cuda: int = 0
 ) -> None:
     """
     Evaluates the given model on the given dataset.
@@ -73,8 +73,8 @@ def evaluation(
         boxes = {"prediction": output["boxes"], "ground truth": target["boxes"]}
         result = get_image(img.detach().cpu(), boxes)
 
-        result = Image.fromarray(result.permute(1, 2, 0).numpy())
-        result.save(
+        result_image = Image.fromarray(result.permute(1, 2, 0).numpy())
+        result_image.save(
             f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
             f"{name}/{idx}_{target['img_number']}.png"
         )
@@ -126,9 +126,9 @@ def evaluation(
     )
 
     with open(
-        f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
-        f"{name}/{name}_overview.txt",
-        "w",
+            f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
+            f"{name}/{name}_overview.txt",
+            "w",
     ) as f:
         f.write(f"true positives: {[x.item() for x in list(all_tp)]}\n")
         f.write(f"false positives: {[x.item() for x in list(all_fp)]}\n")

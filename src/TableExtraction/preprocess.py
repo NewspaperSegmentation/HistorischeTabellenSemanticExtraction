@@ -3,7 +3,7 @@
 import glob
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Tuple, Dict, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,7 +19,7 @@ from utils.utils import convert_coords, get_bbox, plot_annotations
 
 def extract_annotation(
     file: str, mode: str = "maximum", table_relative: bool = True
-) -> (List[dict], List[dict]):
+) -> Tuple[List[dict], List[dict]]:
     """
     Extracts annotation data from transkribus xml file.
 
@@ -37,8 +37,8 @@ def extract_annotation(
     tables = []
     textregions = []
 
-    with open(file, "r", encoding="utf-8") as file:
-        xml_content = file.read()
+    with open(file, "r", encoding="utf-8") as file:     # type: ignore
+        xml_content = file.read()                       # type: ignore
 
     # Parse the XML content
     soup = BeautifulSoup(xml_content, "xml")
@@ -66,8 +66,8 @@ def extract_annotation(
 
         maxcol = 0
 
-        columns = {}  # dictionary of columns and their points
-        rows = {}  # dictionary of rows and their points
+        columns: Dict[int, List[List[int]]] = {}  # dictionary of columns and their points
+        rows: Dict[int, List[List[int]]] = {}  # dictionary of rows and their points
         col_joins = []  # list of join operations for columns
         row_joins = []  # list of join operations for rows
 
@@ -152,10 +152,8 @@ def extract_annotation(
             if join[0] in rows.keys() and join[1] in rows.keys():
                 row_set.merge(*join)
 
-        rows = [
-            [point for key in lst for point in rows[key]] for lst in row_set.subsets()
-        ]
-        t["rows"] = [get_bbox(np.array(col), tablebbox=coord) for col in rows]
+        rows_list = [[point for key in lst for point in rows[key]] for lst in row_set.subsets()]
+        t["rows"] = [get_bbox(np.array(col), tablebbox=coord) for col in rows_list]
 
         # join overlapping columns
         col_set = DisjointSet(columns.keys())
@@ -163,11 +161,8 @@ def extract_annotation(
             if join[0] in columns.keys() and join[1] in columns.keys():
                 col_set.merge(*join)
 
-        columns = [
-            [point for key in lst for point in columns[key]]
-            for lst in col_set.subsets()
-        ]
-        t["columns"] = [get_bbox(np.array(col), tablebbox=coord) for col in columns]
+        cols_list = [[point for key in lst for point in columns[key]] for lst in col_set.subsets()]
+        t["columns"] = [get_bbox(np.array(col), tablebbox=coord) for col in cols_list]
 
         if t["columns"] and t["rows"]:
             tables.append(t)
@@ -176,7 +171,7 @@ def extract_annotation(
 
 
 def preprocess(
-    image: str, tables: List[dict], target: str, file_name: str, text: List[dict] = None
+    image: str, tables: List[dict], target: str, file_name: str, text: Optional[List[dict]] = None
 ) -> None:
     """
     Preprocessing.
