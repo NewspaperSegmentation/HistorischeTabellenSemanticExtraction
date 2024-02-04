@@ -288,7 +288,6 @@ def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool 
 
 
 if __name__ == "__main__":
-    print(glob.glob("/home/kerkfeldn0/TableProject/HistorischeTabellenSemanticExtraction/src/TableExtraction/../../data/BonnData/images/*"))
     ours = True
     glosat = False
 
