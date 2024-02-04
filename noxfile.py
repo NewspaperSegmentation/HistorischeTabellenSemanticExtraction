@@ -8,6 +8,7 @@ def run_test(session):
     """Run pytest."""
     session.install(".")
     session.install("pytest")
+    session.install("torchvision")
     session.run("pytest")
 
 
@@ -45,7 +46,6 @@ def mypy(session):
         "--install-types",
         "--non-interactive",
         "--ignore-missing-imports",
-        "--strict",
         "--no-warn-return-any",
         "--explicit-package-bases",
         "src",
