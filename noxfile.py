@@ -17,6 +17,7 @@ def run_test_fast(session):
     """Run pytest."""
     session.install(".")
     session.install("pytest")
+    session.install("torchvision")
     session.run("pytest", "-m", "not slow")
 
 
