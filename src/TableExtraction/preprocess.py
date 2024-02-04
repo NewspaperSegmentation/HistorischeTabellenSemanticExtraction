@@ -288,38 +288,39 @@ def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool 
 
 
 if __name__ == "__main__":
+    print(glob.glob("/home/kerkfeldn0/TableProject/HistorischeTabellenSemanticExtraction/src/TableExtraction/../../data/BonnData/images/*"))
     ours = True
     glosat = False
 
     if ours:
         main(
-            datafolder=f"{Path(__file__).parent.absolute()}/../data/"
-                       f"immediat-tables-main/annotations/",
-            imgfolder=f"{Path(__file__).parent.absolute()}/../data/"
-                      f"immediat-tables-main/images/",
-            targetfolder=f"{Path(__file__).parent.absolute()}/../data/"
-                         f"Tables/preprocessed/",
+            datafolder=f"{Path(__file__).parent.absolute()}/../../data/"
+                       f"BonnData/annotations",
+            imgfolder=f"{Path(__file__).parent.absolute()}/../../data/"
+                      f"BonnData/images",
+            targetfolder=f"{Path(__file__).parent.absolute()}/../../data/"
+                         f"BonnData/preprocessed",
         )
 
     if glosat:
         main(
-            datafolder=f"{Path(__file__).parent.absolute()}/../data/"
-                       f"GloSAT/datasets/Train/Fine/Transkribus/",
-            imgfolder=f"{Path(__file__).parent.absolute()}/../data/"
-                      f"GloSAT/datasets/Train/JPEGImages/",
-            targetfolder=f"{Path(__file__).parent.absolute()}/../data/"
-                         f"GloSAT/preprocessed/",
+            datafolder=f"{Path(__file__).parent.absolute()}/../../data/"
+                       f"GloSAT/datasets/Train/Fine/Transkribus",
+            imgfolder=f"{Path(__file__).parent.absolute()}/../../data/"
+                      f"GloSAT/datasets/Train/JPEGImages",
+            targetfolder=f"{Path(__file__).parent.absolute()}/../../data/"
+                         f"GloSAT/preprocessed",
         )
 
         main(
-            datafolder=f"{Path(__file__).parent.absolute()}/../data/"
-                       f"GloSAT/datasets/Test/Fine/Transkribus/",
-            imgfolder=f"{Path(__file__).parent.absolute()}/../data/"
-                      f"GloSAT/datasets/Test/JPEGImages/",
-            targetfolder=f"{Path(__file__).parent.absolute()}/../data/"
-                         f"GloSAT/preprocessed/",
+            datafolder=f"{Path(__file__).parent.absolute()}/../../data/"
+                       f"GloSAT/datasets/Test/Fine/Transkribus",
+            imgfolder=f"{Path(__file__).parent.absolute()}/../../data/"
+                      f"GloSAT/datasets/Test/JPEGImages",
+            targetfolder=f"{Path(__file__).parent.absolute()}/../../data/"
+                         f"GloSAT/preprocessed",
         )
 
         plot_annotations(
-            f"{Path(__file__).parent.absolute()}/../data/GloSAT/preprocessed/4/"
+            f"{Path(__file__).parent.absolute()}/../../data/GloSAT/preprocessed/4/"
         )

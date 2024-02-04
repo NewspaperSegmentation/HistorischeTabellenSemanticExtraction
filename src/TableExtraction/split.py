@@ -4,6 +4,7 @@ import glob
 import os
 import random
 import shutil
+from pathlib import Path
 from typing import List, Tuple
 
 from tqdm import tqdm
@@ -62,4 +63,4 @@ def split_dataset(folder: str, split: Tuple[float, float, float]) -> None:
 
 
 if __name__ == "__main__":
-    split_dataset("../data/Tables/preprocessed/", (0.8, 0.1, 0.1))
+    split_dataset(f"{Path(__file__).parent.absolute()}/../../data/BonnData/preprocessed/", (0.8, 0.1, 0.1))

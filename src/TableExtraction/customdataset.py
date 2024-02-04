@@ -3,9 +3,10 @@
 import glob
 import os
 from pathlib import Path
-from typing import Tuple, Union, Dict
+from typing import Tuple, Union, Dict, Optional
 
 import torch
+from torch.nn import Sequential, ModuleList, Module
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms.v2 import Transform
@@ -14,7 +15,7 @@ from torchvision.transforms.v2 import Transform
 class CustomDataset(Dataset):   # type: ignore
     """Dataset Class for training."""
 
-    def __init__(self, path: str, objective: str, transforms: Transform = None) -> None:
+    def __init__(self, path: str, objective: str, transforms: Optional[Union[Module, Transform]] = None) -> None:
         """
         Dataset Class for training.
 
@@ -83,15 +84,15 @@ if __name__ == "__main__":
     import numpy as np
     from torchvision import transforms
 
-    transform = torch.nn.Sequential(
+    transform = Sequential(
         transforms.RandomApply(
-            torch.nn.ModuleList(
+            ModuleList(
                 [transforms.ColorJitter(brightness=(0.5, 1.5), saturation=(0, 2))]
             ),
             p=0,
         ),
         transforms.RandomApply(
-            torch.nn.ModuleList(
+            ModuleList(
                 [transforms.GaussianBlur(kernel_size=9, sigma=(2, 10))]
             ),
             p=0,
