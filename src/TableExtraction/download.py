@@ -13,7 +13,7 @@ def download_glosat() -> None:
 
     # define paths and create folder
     url = "https://zenodo.org/records/5363457/files/datasets.zip"
-    target = f"{Path(__file__).parent.absolute()}/../data/GloSAT/"
+    target = f"{Path(__file__).parent.absolute()}/../../data/GloSAT/"
     file = f"{target}/datasets.zip"
     os.makedirs(target, exist_ok=True)
 
@@ -21,6 +21,7 @@ def download_glosat() -> None:
     request.urlretrieve(url, file)
 
     # extract zip file
+    print("extracting...")
     with zipfile.ZipFile(file, "r") as zipper:
         folder = Path(target)
         folder.mkdir(exist_ok=True)
