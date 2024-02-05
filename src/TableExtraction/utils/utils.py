@@ -195,4 +195,5 @@ def get_bbox(
 
 
 if __name__ == '__main__':
-    plot_annotations(f"{Path(__file__).parent.absolute()}/../../../data/GloSAT/train/0", save_as="0")
+    plot_annotations(f"{Path(__file__).parent.absolute()}/../../../data/GloSAT/train/0",
+                     save_as="0")

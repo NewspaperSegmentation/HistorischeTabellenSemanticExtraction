@@ -62,8 +62,9 @@ def split_dataset(folder: str, split: Tuple[float, float, float]) -> None:
     copy(folder, valid, "valid")
     copy(folder, test, "test")
 
+
 def get_args() -> argparse.Namespace:
-    """defines arguments"""
+    """Defines arguments."""
     parser = argparse.ArgumentParser(description="preprocess")
 
     parser.add_argument('--BonnData', action=argparse.BooleanOptionalAction)

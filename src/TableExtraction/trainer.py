@@ -304,7 +304,7 @@ def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
 
 
 def get_args() -> argparse.Namespace:
-    """defines arguments"""
+    """Defines arguments."""
     parser = argparse.ArgumentParser(description="preprocess")
 
     parser.add_argument(
@@ -399,7 +399,6 @@ if __name__ == "__main__":
             ),
             transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.1),
             transforms.RandomGrayscale(p=0.1))
-
 
     traindataset = CustomDataset(
         f"{Path(__file__).parent.absolute()}/../../data/{args.dataset}/train/",

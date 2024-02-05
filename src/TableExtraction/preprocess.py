@@ -4,7 +4,7 @@ import glob
 import os
 import argparse
 from pathlib import Path
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,12 +15,12 @@ from scipy.cluster.hierarchy import DisjointSet
 from torchvision import transforms
 from tqdm import tqdm
 
-from src.TableExtraction.utils.utils import convert_coords, get_bbox, plot_annotations
+from src.TableExtraction.utils.utils import convert_coords, get_bbox
 
 
 def extract_annotation(
         file: str, mode: str = "maximum", table_relative: bool = True
-) -> Tuple[List[Dict[str, List[List[int]]]], List[Dict[str, List[List[int]]]]]:
+) -> Tuple[List[Dict[str, Sequence[int]]], List[Dict[str, Tuple[int, int, int, int]]]]:
     """
     Extracts annotation data from transkribus xml file.
 
@@ -103,7 +103,7 @@ def extract_annotation(
             )
 
             # get bounding box
-            bbox = get_bbox(points, corners, coord)
+            bbox = get_bbox(points, corners, coord)     # type: ignore
 
             # add to dictionary
             x_flat = bbox[0] >= bbox[2]  # bbox flatt in x dim
@@ -114,7 +114,7 @@ def extract_annotation(
                               not (int(cell["colSpan"]) == maxcol + 1 and int(cell["row"]) == 0))
 
             if not x_flat and not y_flat and no_header_cell:
-                t["cells"].append(bbox)
+                t["cells"].append(bbox)     # type: ignore
 
                 # calc rows
                 # add row number to dict
@@ -154,7 +154,7 @@ def extract_annotation(
                 row_set.merge(*join)
 
         rows_list = [[point for key in lst for point in rows[key]] for lst in row_set.subsets()]
-        t["rows"] = [get_bbox(np.array(col), tablebbox=coord) for col in rows_list]
+        t["rows"] = [get_bbox(np.array(col), tablebbox=coord) for col in rows_list]   # type: ignore
 
         # join overlapping columns
         col_set = DisjointSet(columns.keys())
@@ -163,7 +163,8 @@ def extract_annotation(
                 col_set.merge(*join)
 
         cols_list = [[point for key in lst for point in columns[key]] for lst in col_set.subsets()]
-        t["columns"] = [get_bbox(np.array(col), tablebbox=coord) for col in cols_list]
+        t["columns"] = [get_bbox(np.array(col),
+                                 tablebbox=coord) for col in cols_list]     # type: ignore
 
         if t["columns"] and t["rows"]:
             tables.append(t)
@@ -173,9 +174,10 @@ def extract_annotation(
 
 def preprocess(
         image: str,
-        tables: List[Dict[str, List[List[int]]]],
-        target: str, file_name: str,
-        text: Optional[List[Dict[str, List[List[int]]]]] = None
+        tables: List[Dict[str, Sequence[int]]],
+        target: str,
+        file_name: str,
+        text: Optional[List[Dict[str, Tuple[int, int, int, int]]]] = None
 ) -> None:
     """
     Preprocessing.
@@ -289,7 +291,7 @@ def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool 
 
 
 def get_args() -> argparse.Namespace:
-    """defines arguments"""
+    """Defines arguments."""
     parser = argparse.ArgumentParser(description="preprocess")
     parser.add_argument('--BonnData', action=argparse.BooleanOptionalAction)
     parser.set_defaults(BonnData=False)
