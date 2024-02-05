@@ -339,7 +339,7 @@ def get_args() -> argparse.Namespace:
         help="objective of the model ('table', 'cell', 'row' or 'col')",
     )
 
-    parser.add_argument('--augmentations', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--augmentations', "-a", action=argparse.BooleanOptionalAction)
     parser.set_defaults(augmentations=False)
 
     return parser.parse_args()
