@@ -57,10 +57,10 @@ class Trainer:
         self.optimizer = optimizer
 
         self.trainloader = DataLoader(
-            traindataset, batch_size=1, shuffle=False, num_workers=0
+            traindataset, batch_size=1, shuffle=True, num_workers=4
         )
         self.testloader = DataLoader(
-            testdataset, batch_size=1, shuffle=False, num_workers=0
+            testdataset, batch_size=1, shuffle=False, num_workers=4
         )
 
         self.bestavrgloss: Union[float, None] = None
@@ -68,7 +68,7 @@ class Trainer:
         self.name = name
 
         # setup tensor board
-        train_log_dir = f"{Path(__file__).parent.absolute()}/../logs/runs/{self.name}"
+        train_log_dir = f"{Path(__file__).parent.absolute()}/../../logs/runs/{self.name}"
         print(f"{train_log_dir=}")
         self.writer = SummaryWriter(train_log_dir)  # type: ignore
 
@@ -82,10 +82,10 @@ class Trainer:
         Args:
             name: name of the model
         """
-        os.makedirs(f"{Path(__file__).parent.absolute()}/../models/", exist_ok=True)
+        os.makedirs(f"{Path(__file__).parent.absolute()}/../../models/", exist_ok=True)
         torch.save(
             self.model.state_dict(),
-            f"{Path(__file__).parent.absolute()}/../models/{name}",
+            f"{Path(__file__).parent.absolute()}/../../models/{name}",
         )
 
     def load(self, name: str = "") -> None:
@@ -96,7 +96,7 @@ class Trainer:
             name: name of the model
         """
         self.model.load_state_dict(
-            torch.load(f"{Path(__file__).parent.absolute()}/../models/{name}.pt")
+            torch.load(f"{Path(__file__).parent.absolute()}/../../models/{name}.pt")
         )
 
     def train(self, epoch: int) -> None:
@@ -283,7 +283,7 @@ def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
         FasterRCNN model
     """
     params = {
-        "tables": {"box_detections_per_img": 10},
+        "table": {"box_detections_per_img": 100},
         "cell": {"box_detections_per_img": 200},
         "row": {"box_detections_per_img": 100},
         "col": {"box_detections_per_img": 100},
@@ -296,7 +296,7 @@ def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
     if load_weights:
         model.load_state_dict(
             torch.load(
-                f"{Path(__file__).parent.absolute()}/../models/" f"{load_weights}.pt"
+                f"{Path(__file__).parent.absolute()}/../../models/" f"{load_weights}.pt"
             )
         )
 
@@ -339,6 +339,14 @@ def get_args() -> argparse.Namespace:
         help="objective of the model ('table', 'cell', 'row' or 'col')",
     )
 
+    parser.add_argument(
+        "--load",
+        "-l",
+        type=str,
+        default=None,
+        help="name of a model to load",
+    )
+
     parser.add_argument('--augmentations', "-a", action=argparse.BooleanOptionalAction)
     parser.set_defaults(augmentations=False)
 
@@ -363,12 +371,19 @@ if __name__ == "__main__":
     if args.epochs <= 0:
         raise ValueError("Please enter a valid number of epochs must be >= 0!")
 
-    name = (f"{args.name}_{Dataset}_{args.objective}"
+    print('start training:')
+    print(f"\tname: {args.name}")
+    print(f"\tobjective: {args.objective}")
+    print(f"\tdataset: {args.dataset}")
+    print(f"\tepochs: {args.epochs}")
+    print(f"\tload: {args.load}\n")
+
+    name = (f"{args.name}_{args.dataset}_{args.objective}"
             f"{'_aug' if args.augmentations else ''}_e{args.epochs}")
-    model = get_model(args.objective)
+    model = get_model(args.objective, load_weights=args.load)
 
     transform = None
-    if args.augmentatios:
+    if args.augmentations:
         transform = torch.nn.Sequential(
             transforms.RandomApply(
                 torch.nn.ModuleList(
@@ -387,13 +402,13 @@ if __name__ == "__main__":
 
 
     traindataset = CustomDataset(
-        f"{Path(__file__).parent.absolute()}/../data/{args.dataset}/train/",
-        objective,
+        f"{Path(__file__).parent.absolute()}/../../data/{args.dataset}/train/",
+        args.objective,
         transforms=transform,
     )
 
     validdataset = CustomDataset(
-        f"{Path(__file__).parent.absolute()}/../data/{args.dataset}/valid/", objective
+        f"{Path(__file__).parent.absolute()}/../../data/{args.dataset}/valid/", args.objective
     )
 
     print(f"{len(traindataset)=}")

@@ -24,8 +24,8 @@ class CustomDataset(Dataset):   # type: ignore
             transforms: torchvision transforms for on-the-fly augmentations
         """
         super().__init__()
-        if objective == "tables":
-            self.data = list(glob.glob(f"{path}/*"))
+        if objective == "table":
+            self.data = sorted(list(glob.glob(f"{path}/*")), key=lambda x: int(x.split(os.sep)[-1]))
         else:
             self.data = list(glob.glob(f"{path}/*/*_table_*.pt"))
         self.objective = objective
@@ -43,7 +43,7 @@ class CustomDataset(Dataset):   # type: ignore
 
         """
         # load image and targets depending on objective
-        if self.objective == "tables":
+        if self.objective == "table":
             imgnum = self.data[index].split(os.sep)[-1]
             img = torch.load(f"{self.data[index]}/{imgnum}.pt") / 256
             target = torch.load(f"{self.data[index]}/{imgnum}_tables.pt")
