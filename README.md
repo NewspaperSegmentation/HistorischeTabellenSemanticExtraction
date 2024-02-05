@@ -52,6 +52,20 @@ To create a split on the data the `split.py` can be used:
 ```
 
 ## Train a model
+To train a model the `trainer.py` script can be used:
+```python
+    python -m src.TableExtraction.trainer
+```
+Here the following parameter can be used:
+
+| parameter           | functionality                                                  |
+|---------------------|----------------------------------------------------------------|
+| --name, -n          | name of the model in savefiles and logging                     |
+| --epochs, -e        | Number of epochs to train                                      |
+| --dataset, -d       | which dataset should be used for training (GloSAT or BonnData) |
+| --objective, -o     | objective of the model ('table', 'cell', 'row' or 'col')       |
+| --augmentations, -a | Use augmentations while training                               |
+
 
 ## Evaluated a model
 
