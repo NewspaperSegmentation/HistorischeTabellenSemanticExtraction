@@ -25,23 +25,30 @@ the images as .jpg-files.
 ### GloSAT dataset
 The GloSAT dataset can be downloaded using the `download.py` script: 
 ```python
-    python -m src.download
+    python -m src.TableExtraction.download
 ```
 
 
 ## Preprocess the data
-For preprocessing the data the `preprocess.py` can be used. It creates a new folder in data/Tables 
-with all preprocessed images and annotations. Creating a new folder for very image, c
+For preprocessing the data the `preprocess.py` can be used. It creates a new folder in data/BonnData
+or data/GloSAT called preprocessed with all the preprocessed data. Use `--BonnData` or `--GloSAT` to
+preprocess the specific dataset.
 
 ```python
-    python -m src.TableExtraction.preprocess
+    python -m src.TableExtraction.preprocess --BonnData
+```
+```python
+    python -m src.TableExtraction.preprocess --GloSAT
 ```
 
 ## Create Training, Validation and Test split
 To create a split on the data the `split.py` can be used:
 
 ```python
-    python -m src.TableExtraction.split
+    python -m src.TableExtraction.split --BonnData
+```
+```python
+    python -m src.TableExtraction.split --GloSAT
 ```
 
 ## Train a model
