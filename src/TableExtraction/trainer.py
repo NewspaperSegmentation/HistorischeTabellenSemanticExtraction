@@ -2,13 +2,14 @@
 
 import os
 from pathlib import Path
+import argparse
 from typing import Optional, Union
 
 import numpy as np
 import torch
 from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter   # type: ignore
+from torch.utils.tensorboard import SummaryWriter  # type: ignore
 from torchvision.models.detection import (
     FasterRCNN,
     FasterRCNN_ResNet50_FPN_Weights,
@@ -152,28 +153,28 @@ class Trainer:
             "Training/loss",
             np.mean(loss_lst),
             global_step=self.epoch
-        )       # type: ignore
+        )  # type: ignore
         self.writer.add_scalar(
             "Training/loss_classifier",
             np.mean(loss_classifier_lst),
             global_step=self.epoch,
-        )   # type: ignore
+        )  # type: ignore
         self.writer.add_scalar(
             "Training/loss_box_reg",
             np.mean(loss_box_reg_lst),
             global_step=self.epoch
-        )   # type: ignore
+        )  # type: ignore
         self.writer.add_scalar(
             "Training/loss_objectness",
             np.mean(loss_objectness_lst),
             global_step=self.epoch,
-        )   # type: ignore
+        )  # type: ignore
         self.writer.add_scalar(
             "Training/loss_rpn_box_reg",
             np.mean(loss_rpn_box_reg_lst),
             global_step=self.epoch,
-        )   # type: ignore
-        self.writer.flush()         # type: ignore
+        )  # type: ignore
+        self.writer.flush()  # type: ignore
 
         del (
             loss_lst,
@@ -218,28 +219,28 @@ class Trainer:
             "Valid/loss",
             meanloss,
             global_step=self.epoch
-        )   # type: ignore
+        )  # type: ignore
         self.writer.add_scalar(
             "Valid/loss_classifier",
             np.mean(loss_classifier),
             global_step=self.epoch
-        )   # type: ignore
+        )  # type: ignore
         self.writer.add_scalar(
             "Valid/loss_box_reg",
             np.mean(loss_box_reg),
             global_step=self.epoch
-        )   # type: ignore
+        )  # type: ignore
         self.writer.add_scalar(
             "Valid/loss_objectness",
             np.mean(loss_objectness),
             global_step=self.epoch
-        )   # type: ignore
+        )  # type: ignore
         self.writer.add_scalar(
             "Valid/loss_rpn_box_reg",
             np.mean(loss_rpn_box_reg),
             global_step=self.epoch
-        )   # type: ignore
-        self.writer.flush()   # type: ignore
+        )  # type: ignore
+        self.writer.flush()  # type: ignore
 
         self.model.eval()
 
@@ -252,7 +253,7 @@ class Trainer:
         result = get_image(self.train_example_image, boxes)
         self.writer.add_image(
             "Training/example", result[:, ::2, ::2], global_step=self.epoch
-        )   # type: ignore
+        )  # type: ignore
 
         # predict example form validation set
         pred = self.model([self.example_image.to(self.device)])
@@ -263,7 +264,7 @@ class Trainer:
         result = get_image(self.example_image, boxes)
         self.writer.add_image(
             "Valid/example", result[:, ::2, ::2], global_step=self.epoch
-        )   # type: ignore
+        )  # type: ignore
 
         self.model.train()
 
@@ -302,38 +303,97 @@ def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
     return model
 
 
+def get_args() -> argparse.Namespace:
+    """defines arguments"""
+    parser = argparse.ArgumentParser(description="preprocess")
+
+    parser.add_argument(
+        "--name",
+        "-n",
+        type=str,
+        default="model",
+        help="Name of the model, for saving and logging",
+    )
+
+    parser.add_argument(
+        "--epochs",
+        "-e",
+        type=int,
+        default=250,
+        help="Number of epochs",
+    )
+
+    parser.add_argument(
+        "--dataset",
+        "-d",
+        type=str,
+        default="BonnData",
+        help="which dataset should be used for training",
+    )
+
+    parser.add_argument(
+        "--objective",
+        "-o",
+        type=str,
+        default="table",
+        help="objective of the model ('table', 'cell', 'row' or 'col')",
+    )
+
+    parser.add_argument('--augmentations', action=argparse.BooleanOptionalAction)
+    parser.set_defaults(augmentations=False)
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     from torchvision import transforms
 
-    name = "test_new_ploting4"
-    objective = "cell"
-    model = get_model(objective)
+    args = get_args()
 
-    transform = torch.nn.Sequential(
-        transforms.RandomApply(
-            torch.nn.ModuleList(
-                [transforms.ColorJitter(brightness=(0.5, 1.5), saturation=(0, 2))]
+    # check args
+    if args.name == 'model':
+        raise ValueError("Please enter a valid model name!")
+
+    if args.objective not in ['table', 'col', 'row', 'cell']:
+        raise ValueError("Please enter a valid objective must be 'table', 'col', 'row' or 'cell'!")
+
+    if args.dataset not in ['BonnData', 'GloSAT']:
+        raise ValueError("Please enter a valid dataset must be 'BonnData' or 'GloSAT'!")
+
+    if args.epochs <= 0:
+        raise ValueError("Please enter a valid number of epochs must be >= 0!")
+
+    name = (f"{args.name}_{Dataset}_{args.objective}"
+            f"{'_aug' if args.augmentations else ''}_e{args.epochs}")
+    model = get_model(args.objective)
+
+    transform = None
+    if args.augmentatios:
+        transform = torch.nn.Sequential(
+            transforms.RandomApply(
+                torch.nn.ModuleList(
+                    [transforms.ColorJitter(brightness=(0.5, 1.5), saturation=(0, 2))]
+                ),
+                p=0.1,
             ),
-            p=0.1,
-        ),
-        transforms.RandomApply(
-            torch.nn.ModuleList(
-                [transforms.GaussianBlur(kernel_size=9, sigma=(2, 10))]
+            transforms.RandomApply(
+                torch.nn.ModuleList(
+                    [transforms.GaussianBlur(kernel_size=9, sigma=(2, 10))]
+                ),
+                p=0.1,
             ),
-            p=0.1,
-        ),
-        transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.1),
-        transforms.RandomGrayscale(p=0.1),
-    )
+            transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.1),
+            transforms.RandomGrayscale(p=0.1))
+
 
     traindataset = CustomDataset(
-        f"{Path(__file__).parent.absolute()}/../data/GloSAT/train/",
+        f"{Path(__file__).parent.absolute()}/../data/{args.dataset}/train/",
         objective,
         transforms=transform,
     )
 
     validdataset = CustomDataset(
-        f"{Path(__file__).parent.absolute()}/../data/GloSAT/valid/", objective
+        f"{Path(__file__).parent.absolute()}/../data/{args.dataset}/valid/", objective
     )
 
     print(f"{len(traindataset)=}")
@@ -342,4 +402,4 @@ if __name__ == "__main__":
     optimizer = AdamW(model.parameters(), lr=LR)
 
     trainer = Trainer(model, traindataset, validdataset, optimizer, name)
-    trainer.train(10)
+    trainer.train(args.epochs)

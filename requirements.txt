@@ -1,5 +1,5 @@
 numpy~=1.25.2
-pytorch~=2.0.1
+torch~=2.0.1
 pillow~=10.2.0
 beautifulsoup4~=4.12.2
 matplotlib~=3.7.2
@@ -7,3 +7,4 @@ tqdm~=4.66.1
 scipy~=1.11.1
 torchvision~=0.15.2
 pandas~=2.2.0
+lxml~=5.1.0

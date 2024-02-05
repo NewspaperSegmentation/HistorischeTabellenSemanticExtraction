@@ -2,6 +2,7 @@
 
 import glob
 import os
+import argparse
 import random
 import shutil
 from pathlib import Path
@@ -61,7 +62,32 @@ def split_dataset(folder: str, split: Tuple[float, float, float]) -> None:
     copy(folder, valid, "valid")
     copy(folder, test, "test")
 
+def get_args() -> argparse.Namespace:
+    """defines arguments"""
+    parser = argparse.ArgumentParser(description="preprocess")
+
+    parser.add_argument('--BonnData', action=argparse.BooleanOptionalAction)
+    parser.set_defaults(BonnData=False)
+
+    parser.add_argument('--GloSAT', action=argparse.BooleanOptionalAction)
+    parser.set_defaults(GloSAT=False)
+
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
-    split_dataset(f"{Path(__file__).parent.absolute()}/../../data/BonnData/preprocessed/",
-                  (0.8, 0.1, 0.1))
+    args = get_args()
+
+    # check args
+    if not args.BonnData and not args.GloSAT:
+        raise ValueError("Please enter a valid dataset must be '--BonnData' or '--GloSAT'!")
+
+    if args.BonnData:
+        split_dataset(f"{Path(__file__).parent.absolute()}/../../data/BonnData/"
+                      f"preprocessed/",
+                      (0.8, 0.1, 0.1))
+
+    if args.GloSAT:
+        split_dataset(f"{Path(__file__).parent.absolute()}/../../data/GloSAT/"
+                      f"preprocessed/",
+                      (0.8, 0.1, 0.1))

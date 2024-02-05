@@ -2,6 +2,7 @@
 
 import glob
 import os
+import argparse
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
 
@@ -14,7 +15,7 @@ from scipy.cluster.hierarchy import DisjointSet
 from torchvision import transforms
 from tqdm import tqdm
 
-from utils.utils import convert_coords, get_bbox, plot_annotations
+from src.TableExtraction.utils.utils import convert_coords, get_bbox, plot_annotations
 
 
 def extract_annotation(
@@ -287,9 +288,26 @@ def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool 
                 preprocess(img, table, targetfolder, file_name, text)
 
 
+def get_args() -> argparse.Namespace:
+    """defines arguments"""
+    parser = argparse.ArgumentParser(description="preprocess")
+    parser.add_argument('--BonnData', action=argparse.BooleanOptionalAction)
+    parser.set_defaults(BonnData=False)
+
+    parser.add_argument('--GloSAT', action=argparse.BooleanOptionalAction)
+    parser.set_defaults(GloSAT=False)
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    ours = True
-    glosat = False
+    args = get_args()
+
+    ours = args.BonnData
+    glosat = args.GloSAT
+
+    if not ours and not glosat:
+        print('No data to preprocess given.')
 
     if ours:
         main(
@@ -318,8 +336,4 @@ if __name__ == "__main__":
                       f"GloSAT/datasets/Test/JPEGImages",
             targetfolder=f"{Path(__file__).parent.absolute()}/../../data/"
                          f"GloSAT/preprocessed",
-        )
-
-        plot_annotations(
-            f"{Path(__file__).parent.absolute()}/../../data/GloSAT/preprocessed/4/"
         )
