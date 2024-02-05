@@ -22,6 +22,13 @@ the images as .jpg-files.
 |      |        ...
 ```
 
+### GloSAT dataset
+The GloSAT dataset can be downloaded using the `download.py` script: 
+```python
+    python -m src.download
+```
+
+
 ## Preprocess the data
 For preprocessing the data the `preprocess.py` can be used. It creates a new folder in data/Tables 
 with all preprocessed images and annotations. Creating a new folder for very image, c
