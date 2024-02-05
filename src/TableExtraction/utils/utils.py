@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import glob
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -25,6 +26,7 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
     Raises:
         ValueError: if image tensor doesn't have 3 (color) channel in dim 0 and 2
     """
+    image = image.clone()
     # move color channel first if color channel is last
     image = image.permute(2, 0, 1) if image.shape[2] == 3 else image
 
@@ -81,7 +83,7 @@ def plot_image(
 
     # save images if save_as folder is given
     if save_path is not None:
-        path = f"{Path(__file__).parent.absolute()}/../data/assets/images/{save_path}/"
+        path = f"{Path(__file__).parent.absolute()}/../../../data/assets/images/{save_path}/"
         os.makedirs(path, exist_ok=True)
         plt.savefig(f"{path}{save_path}_{title}.png")
 
@@ -193,5 +195,4 @@ def get_bbox(
 
 
 if __name__ == '__main__':
-    import glob
-    plot_annotations("../../../data/GloSAT/preprocessed/0")
+    plot_annotations(f"{Path(__file__).parent.absolute()}/../../../data/GloSAT/train/0", save_as="0")
