@@ -1,5 +1,5 @@
 """Evaluates the model performance on a test dataset."""
-
+import argparse
 import os
 from pathlib import Path
 
@@ -7,13 +7,10 @@ import pandas as pd
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader
-from torchvision.models.detection import (
-    FasterRCNN_ResNet50_FPN_Weights,
-    fasterrcnn_resnet50_fpn,
-)
 from tqdm import tqdm
 
 from src.TableExtraction.customdataset import CustomDataset
+from src.TableExtraction.trainer import get_model
 from src.TableExtraction.utils.metrics import (
     calc_metrics,
     calc_stats,
@@ -143,20 +140,47 @@ def evaluation(
     )
 
 
+def get_args() -> argparse.Namespace:
+    """Defines arguments."""
+    parser = argparse.ArgumentParser(description="evaluation")
+
+    parser.add_argument(
+        "--dataset",
+        "-d",
+        type=str,
+        default="BonnData",
+        help="Name of the dataset to evaluate on",
+    )
+
+    parser.add_argument(
+        "--objective",
+        "-o",
+        type=str,
+        default="Table",
+        help="Objective of the model",
+    )
+
+    parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        help="Name of the model-file to evaluate",
+    )
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    name = "run_cells_limit2_es"
-    model = fasterrcnn_resnet50_fpn(
-        weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, box_detections_per_img=256
+    args = get_args()
+    print(args)
+
+    model = get_model(args.objective, args.model)
+
+    testdataset = CustomDataset(
+        f"{Path(__file__).parent.absolute()}/" f"../data/{args.dataset}/test",
+        args.objective
     )
 
-    model.load_state_dict(
-        torch.load(f"{Path(__file__).parent.absolute()}/" f"../models/{name}.pt")
-    )
+    print(f"{len(testdataset)=}")
 
-    validdataset = CustomDataset(
-        f"{Path(__file__).parent.absolute()}/" f"../data/GloSAT/valid", "cell"
-    )
-
-    print(f"{len(validdataset)=}")
-
-    evaluation(model, validdataset, name=name)
+    evaluation(model, testdataset, name=args.model)

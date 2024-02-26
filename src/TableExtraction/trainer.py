@@ -305,7 +305,7 @@ def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
 
 def get_args() -> argparse.Namespace:
     """Defines arguments."""
-    parser = argparse.ArgumentParser(description="preprocess")
+    parser = argparse.ArgumentParser(description="training")
 
     parser.add_argument(
         "--name",
