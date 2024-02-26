@@ -72,7 +72,7 @@ def evaluation(
 
         result_image = Image.fromarray(result.permute(1, 2, 0).numpy())
         result_image.save(
-            f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
+            f"{Path(__file__).parent.absolute()}/../../logs/evaluation/"
             f"{name}/{idx}_{target['img_number']}.png"
         )
 
@@ -119,11 +119,11 @@ def evaluation(
         torch.tensor(probabilities),
         torch.tensor(ious_list),
         name,
-        f"{Path(__file__).parent.absolute()}/../logs/evaluation/{name}/",
+        f"{Path(__file__).parent.absolute()}/../../logs/evaluation/{name}/",
     )
 
     with open(
-            f"{Path(__file__).parent.absolute()}/../logs/evaluation/"
+            f"{Path(__file__).parent.absolute()}/../../logs/evaluation/"
             f"{name}/{name}_overview.txt",
             "w",
     ) as f:
@@ -136,7 +136,7 @@ def evaluation(
         f.write(f"weighted F1 score: {all_wf1=}\n")
 
     df.to_csv(
-        f"{Path(__file__).parent.absolute()}/../logs/evaluation/" f"{name}/{name}.csv"
+        f"{Path(__file__).parent.absolute()}/../../logs/evaluation/" f"{name}/{name}.csv"
     )
 
 
