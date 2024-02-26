@@ -48,7 +48,7 @@ def evaluation(
     )
 
     os.makedirs(
-        f"{Path(__file__).parent.absolute()}/../logs/evaluation/" f"{name}/",
+        f"{Path(__file__).parent.absolute()}/../../logs/evaluation/" f"{name}/",
         exist_ok=True,
     )
 
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     model = get_model(args.objective, args.model)
 
     testdataset = CustomDataset(
-        f"{Path(__file__).parent.absolute()}/" f"../data/{args.dataset}/test",
+        f"{Path(__file__).parent.absolute()}/" f"../../data/{args.dataset}/test",
         args.objective
     )
 

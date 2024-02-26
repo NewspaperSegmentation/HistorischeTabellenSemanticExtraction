@@ -27,9 +27,13 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
         ValueError: if image tensor doesn't have 3 (color) channel in dim 0 and 2
     """
     image = image.clone()
+    
+    # unbatch image if image has batch dim
+    image = image[0] if image.dim() == 4 else image
+
     # move color channel first if color channel is last
     image = image.permute(2, 0, 1) if image.shape[2] == 3 else image
-
+    
     # if first dim doesn't have 3 raise Error
     if image.shape[0] != 3:
         raise ValueError("Only RGB image, need to have 3 channels in dim 0 or 2")
