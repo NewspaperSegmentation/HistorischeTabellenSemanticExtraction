@@ -49,9 +49,9 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
     coords = torch.zeros((0, 4))
 
     # change order to draw predictions on top of ground truth
-    boxes = list(boxes.items())
-    boxes.reverse()
-    for idx, (label, item) in enumerate(boxes):
+    boxes_lst = list(boxes.items())
+    boxes_lst.reverse()
+    for idx, (label, item) in enumerate(boxes_lst):
         labels.extend([label] * len(item))
         colors.extend([colorplate[idx]] * len(item))
         coords = torch.vstack((coords, item))
