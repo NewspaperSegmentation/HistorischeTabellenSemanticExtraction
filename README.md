@@ -1,7 +1,7 @@
-# HistorischeTabellenSemanticExtraction
+# Historische Tabellen Semantic Extraction
 
-using python 3.10
-
+This is the code from a project work on table extraction from historical documents.
+In the project we used a Faster R-CNN model to detect tables, cells, columns and rows in historical documents form 2 different dataset.
 
 
 # Get started
@@ -67,5 +67,18 @@ Here the following parameter can be used:
 | --augmentations, -a | Use augmentations while training                               |
 
 
-## Evaluated a model
+## Evaluate a model
+To evaluate a model the `evaluation.py` script can be used:
+```python
+    python -m src.TableExtraction.evaluation
+```
+
+Here the following parameter can be used:
+
+| parameter           | functionality                                                  |
+|---------------------|----------------------------------------------------------------|
+| --dataset, -d       | which dataset should be used for training (GloSAT or BonnData) |
+| --objective, -o     | objective of the model ('table', 'cell', 'row' or 'col')       |
+| --model, -m         | name of the model to load and evaluate                         |
+
 
