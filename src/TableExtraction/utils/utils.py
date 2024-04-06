@@ -11,14 +11,16 @@ from matplotlib import pyplot as plt
 from torchvision.utils import draw_bounding_boxes
 
 
-def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tensor:
+def get_image(image: torch.Tensor,
+              prediction: Optional[Dict[str, torch.Tensor]] = None,
+              ground_truth: Optional[torch.Tensor] = None) -> torch.Tensor:
     """
     Draws bounding boxes on the given image and returns it as torch Tensor.
 
     Args:
         image: image to draw bounding boxes on
-        boxes: Dict of bounding boxes to draw on the image.
-               Keys are used as labels
+        prediction: Dict with predicted bounding boxes and there scores
+        ground_truth: ground truth bounding boxes
 
     Returns:
             torch.Tensor of image with bounding boxes
@@ -26,6 +28,14 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
     Raises:
         ValueError: if image tensor doesn't have 3 (color) channel in dim 0 and 2
     """
+    if prediction is not None:
+        pred_boxes, pred_scores = prediction['boxes'], prediction['scores']
+    else:
+        pred_boxes, pred_scores = torch.zeros(0, 4), torch.zeros((0,))
+
+    if ground_truth is None:
+        ground_truth = torch.zeros((0, 4))
+
     image = image.clone()
 
     # unbatch image if image has batch dim
@@ -42,30 +52,27 @@ def get_image(image: torch.Tensor, boxes: Dict[str, torch.Tensor]) -> torch.Tens
     if image.max() <= 1.0:
         image *= 256
 
-    colorplate = ["green", "red", "blue", "yellow"]
+    coords = ground_truth
+    coords = torch.vstack((coords, pred_boxes))
+    colors = np.array([0, 255, 0] * len(ground_truth) + [255, 0, 0] * len(pred_boxes), dtype=float).reshape(-1, 3)
+    factor = np.ones((len(ground_truth) + len(pred_boxes)))
+    factor[len(ground_truth):] = pred_scores
+    colors *= factor[:, None]
 
-    colors = []
-    labels = []
-    coords = torch.zeros((0, 4))
+    if coords.shape[0] != 0:
+        image = draw_bounding_boxes(image.to(torch.uint8),
+                                    coords,
+                                    colors=[tuple(c) for c in colors.astype(np.uint8)],
+                                    width=3)
 
-    # change order to draw predictions on top of ground truth
-    boxes_lst = list(boxes.items())
-    boxes_lst.reverse()
-    for idx, (label, item) in enumerate(boxes_lst):
-        labels.extend([label] * len(item))
-        colors.extend([colorplate[idx]] * len(item))
-        coords = torch.vstack((coords, item))
-
-    result = draw_bounding_boxes(image.to(torch.uint8), coords, colors=colors, width=3)
-
-    return result
+    return image
 
 
 def plot_image(
-    image: Union[torch.Tensor, np.ndarray],     # type: ignore
-    boxes: Dict[str, torch.Tensor],
-    title: Optional[str] = None,
-    save_path: Optional[str] = None,
+        image: Union[torch.Tensor, np.ndarray],  # type: ignore
+        boxes: Dict[str, torch.Tensor],
+        title: Optional[str] = None,
+        save_path: Optional[str] = None,
 ) -> None:
     """
     Plot an image with given bounding boxes using pyplot.
@@ -171,9 +178,9 @@ def convert_coords(string: str) -> np.ndarray:  # type: ignore
 
 
 def get_bbox(
-    points: np.ndarray,     # type: ignore
-    corners: Union[None, List[int]] = None,
-    tablebbox: Optional[Tuple[int, int, int, int]] = None,
+        points: np.ndarray,  # type: ignore
+        corners: Union[None, List[int]] = None,
+        tablebbox: Optional[Tuple[int, int, int, int]] = None,
 ) -> Tuple[int, int, int, int]:
     """
     Creates a bounding box around all given points.
@@ -203,5 +210,19 @@ def get_bbox(
 
 
 if __name__ == '__main__':
-    plot_annotations(f"{Path(__file__).parent.absolute()}/../../../data/GloSAT/train/0",
-                     save_as="0")
+    # plot_annotations(f"{Path(__file__).parent.absolute()}/../../../data/GloSAT/train/0", save_as="0")
+
+    img = torch.ones(3, 100, 100)
+    prediction = {'scores': torch.Tensor([0.5, 0.75, 0.9]),
+                  'boxes': torch.Tensor([[25, 25, 35, 35],
+                                         [80, 20, 90, 40],
+                                         [65, 65, 85, 85]])}
+
+    ground_truth = torch.Tensor([[27, 27, 37, 37],
+                                 [80, 20, 90, 40],
+                                 [65, 65, 80, 80]])
+
+    img = get_image(img, None, ground_truth)
+
+    plt.imshow(img.permute(1, 2, 0))
+    plt.show()
