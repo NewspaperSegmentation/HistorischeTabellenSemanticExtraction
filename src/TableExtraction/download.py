@@ -1,6 +1,7 @@
 """Script to download datasets."""
-
+import gzip
 import os
+import tarfile
 import zipfile
 from pathlib import Path
 from urllib import request
@@ -31,6 +32,43 @@ def download_glosat() -> None:
     os.remove(file)
 
 
+def download_pubtables() -> None:
+    """Download script for pubtables-1m dataset."""
+    print("process can take a quite some time")
+
+    files = [
+        # "PubTables-1M-Detection_Annotations_Test.tar.gz",
+        # "PubTables-1M-Detection_Annotations_Train.tar.gz",
+        "PubTables-1M-Detection_Annotations_Val.tar.gz",
+        # "PubTables-1M-Detection_Images_Test.tar.gz",
+        # "PubTables-1M-Detection_Images_Train_Part1.tar.gz",
+        # "PubTables-1M-Detection_Images_Train_Part2.tar.gz",
+        "PubTables-1M-Detection_Images_Val.tar.gz",
+        # "PubTables-1M-Structure_Annotations_Test.tar.gz",
+        # "PubTables-1M-Structure_Annotations_Train.tar.gz",
+        "PubTables-1M-Structure_Annotations_Val.tar.gz",
+        # "PubTables-1M-Structure_Images_Test.tar.gz",
+        # "PubTables-1M-Structure_Images_Train.tar.gz",
+        "PubTables-1M-Structure_Images_Val.tar.gz"
+    ]
+
+    target = f"{Path(__file__).parent.absolute()}/../../data/PubTables/"
+
+    for file in files:
+        print(f"downloading {file} ...")
+        url = f"https://huggingface.co/datasets/bsmock/pubtables-1m/resolve/main/{file}?download=true"
+        request.urlretrieve(url, target + file)
+
+        # extract zip file
+        os.makedirs(target + file[:-7], exist_ok=True)
+        with gzip.open(target + file, 'rb') as f_in:
+            with tarfile.open(fileobj=f_in, mode='r') as tar:
+                tar.extractall(path=target + file[:-7])
+
+        # remove zip file
+        os.remove(target + file)
+
+
 def download_ours() -> None:
     """Download script for our data."""
     # TODO: implement download script for our dataset
@@ -57,4 +95,4 @@ def main(dataset: str = "GloSAT") -> None:
 
 
 if __name__ == "__main__":
-    main("GloSAT")
+    download_pubtables()
