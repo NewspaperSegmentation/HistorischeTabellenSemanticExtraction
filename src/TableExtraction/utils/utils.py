@@ -8,7 +8,45 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
-from torchvision.utils import draw_bounding_boxes
+from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
+
+
+def draw_prediction(image: torch.Tensor, prediction: Dict[str, torch.Tensor]):
+    """
+    Draws a visualisation of the prediction.
+
+    Args:
+        image: image
+        prediction: Dict with the prediction of the model
+
+    Raises:
+        ValueError: If image is not a color image with 3 chanels
+
+    Returns:
+        visualisation of the prediction
+    """
+    image = image.clone()
+
+    # unbatch image if image has batch dim
+    image = image[0] if image.dim() == 4 else image
+
+    # move color channel first if color channel is last
+    image = image.permute(2, 0, 1) if image.shape[2] == 3 else image
+
+    # if first dim doesn't have 3 raise Error
+    if image.shape[0] != 3:
+        raise ValueError("Only RGB image, need to have 3 channels in dim 0 or 2")
+
+    # map [0, 1] to [0, 255]
+    if image.max() <= 1.0:
+        image *= 256
+
+    if 'masks' in prediction.keys():
+        image = draw_segmentation_masks(image.to(torch.uint8), prediction['masks'].squeeze() > .5)
+
+    image = draw_bounding_boxes(image.to(torch.uint8), prediction['boxes'], width=2, colors='red')
+
+    return image
 
 
 def get_image(image: torch.Tensor,
@@ -54,7 +92,9 @@ def get_image(image: torch.Tensor,
 
     coords = ground_truth
     coords = torch.vstack((coords, pred_boxes))
-    colors = np.array([0, 255, 0] * len(ground_truth) + [255, 0, 0] * len(pred_boxes), dtype=float).reshape(-1, 3)
+    colors = np.array([0, 255, 0] * len(ground_truth) +
+                      [255, 0, 0] * len(pred_boxes),
+                      dtype=float).reshape(-1, 3)
     factor = np.ones((len(ground_truth) + len(pred_boxes)))
     factor[len(ground_truth):] = pred_scores
     colors *= factor[:, None]
@@ -111,7 +151,7 @@ def plot_annotations(folder: str, save_as: Optional[str] = None) -> None:
     Shows target for model from given folder.
 
     Args:
-        folder: path to folder of preprocessed example
+        folder: path to folder of train example
         save_as: name of the folder to save the images in (optional)
                  Images are saved in data/assets/images/
     """
@@ -178,7 +218,7 @@ def convert_coords(string: str) -> np.ndarray:  # type: ignore
 
 
 def get_bbox(
-        points: np.ndarray,  # type: ignore
+        points: Union[np.ndarray, torch.Tensor],  # type: ignore
         corners: Union[None, List[int]] = None,
         tablebbox: Optional[Tuple[int, int, int, int]] = None,
 ) -> Tuple[int, int, int, int]:
@@ -206,12 +246,10 @@ def get_bbox(
         x_max -= tablebbox[0]
         y_max -= tablebbox[1]
 
-    return x_min, y_min, x_max, y_max
+    return x_min, y_min, x_max, y_max   # type: ignore
 
 
 if __name__ == '__main__':
-    # plot_annotations(f"{Path(__file__).parent.absolute()}/../../../data/GloSAT/train/0", save_as="0")
-
     img = torch.ones(3, 100, 100)
     prediction = {'scores': torch.Tensor([0.5, 0.75, 0.9]),
                   'boxes': torch.Tensor([[25, 25, 35, 35],

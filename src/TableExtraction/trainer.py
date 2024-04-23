@@ -8,17 +8,21 @@ from typing import Optional, Union
 import numpy as np
 import torch
 from torch.optim import AdamW, Optimizer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
 from torchvision.models.detection import (
     FasterRCNN,
+    maskrcnn_resnet50_fpn,
+    MaskRCNN_ResNet50_FPN_Weights,
     FasterRCNN_ResNet50_FPN_Weights,
     fasterrcnn_resnet50_fpn,
 )
 from tqdm import tqdm
 
-from src.TableExtraction.customdataset import CustomDataset
-from src.TableExtraction.utils.utils import get_image
+from src.TableExtraction.customdataset import CustomDataset as TableDataset
+from src.TableExtraction.dataset_newspaper import CustomDataset as NewspaperDataset
+from src.TableExtraction.postprocessing import postprocess
+from src.TableExtraction.utils.utils import draw_prediction
 
 LR = 0.00001
 
@@ -29,10 +33,11 @@ class Trainer:
     def __init__(
             self,
             model: FasterRCNN,
-            traindataset: CustomDataset,
-            testdataset: CustomDataset,
+            traindataset: Union[TableDataset, NewspaperDataset],
+            testdataset: Union[TableDataset, NewspaperDataset],
             optimizer: Optimizer,
             name: str,
+            mask_prediction: bool = False,
             cuda: int = 0,
     ) -> None:
         """
@@ -44,6 +49,7 @@ class Trainer:
             testdataset: dataset to validate model while trainings process
             optimizer: optimizer to use
             name: name of the model in save-files and tensorboard
+            mask_prediction: Set True if you want to get masks predicted
             cuda: number of used cuda device
         """
         self.device = (
@@ -55,12 +61,13 @@ class Trainer:
 
         self.model = model.to(self.device)
         self.optimizer = optimizer
+        self.mask_prediction = mask_prediction
 
         self.trainloader = DataLoader(
-            traindataset, batch_size=1, shuffle=True, num_workers=4
+            traindataset, batch_size=1, shuffle=True, num_workers=6
         )
         self.testloader = DataLoader(
-            testdataset, batch_size=1, shuffle=False, num_workers=4
+            testdataset, batch_size=1, shuffle=False, num_workers=6
         )
 
         self.bestavrgloss: Union[float, None] = None
@@ -72,8 +79,8 @@ class Trainer:
         print(f"{train_log_dir=}")
         self.writer = SummaryWriter(train_log_dir)  # type: ignore
 
-        self.example_image, self.example_target = testdataset[0]
-        self.train_example_image, self.train_example_target = traindataset[0]
+        self.example_image, self.example_target = testdataset[2]
+        self.train_example_image, self.train_example_target = traindataset[2]
 
     def save(self, name: str = "") -> None:
         """
@@ -131,6 +138,9 @@ class Trainer:
             img = img.to(self.device)
             target["boxes"] = target["boxes"][0].to(self.device)
             target["labels"] = target["labels"][0].to(self.device)
+
+            if self.mask_prediction:
+                target["masks"] = target["masks"][0].to(self.device)
 
             self.optimizer.zero_grad()
             output = model([img[0]], [target])
@@ -202,6 +212,9 @@ class Trainer:
             target["boxes"] = target["boxes"][0].to(self.device)
             target["labels"] = target["labels"][0].to(self.device)
 
+            if self.mask_prediction:
+                target["masks"] = target["masks"][0].to(self.device)
+
             output = self.model([img[0]], [target])
 
             loss.append(sum(v for v in output.values()).cpu().detach())
@@ -246,22 +259,16 @@ class Trainer:
 
         # predict example form training set
         pred = self.model([self.train_example_image.to(self.device)])
-        boxes = {
-            "ground truth": self.train_example_target["boxes"],
-            "prediction": pred[0]["boxes"].detach().cpu(),
-        }
-        result = get_image(self.train_example_image, boxes)
+        pred = postprocess(pred)
+        result = draw_prediction(self.train_example_image, pred[0])
         self.writer.add_image(
             "Training/example", result[:, ::2, ::2], global_step=self.epoch
         )  # type: ignore
 
         # predict example form validation set
         pred = self.model([self.example_image.to(self.device)])
-        boxes = {
-            "ground truth": self.example_target["boxes"],
-            "prediction": pred[0]["boxes"].detach().cpu(),
-        }
-        result = get_image(self.example_image, boxes)
+        pred = postprocess(pred)
+        result = draw_prediction(self.example_image, pred[0])
         self.writer.add_image(
             "Valid/example", result[:, ::2, ::2], global_step=self.epoch
         )  # type: ignore
@@ -287,11 +294,14 @@ def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
         "cell": {"box_detections_per_img": 200},
         "row": {"box_detections_per_img": 100},
         "col": {"box_detections_per_img": 100},
+        "textlines": {"box_detections_per_img": None},
     }
 
-    model = fasterrcnn_resnet50_fpn(
-        weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, **params[objective]
-    )
+    model = (maskrcnn_resnet50_fpn(weights=MaskRCNN_ResNet50_FPN_Weights.DEFAULT,
+                                   **params[objective])
+             if objective == 'textlines'
+             else fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT,
+                                          **params[objective]))
 
     if load_weights:
         model.load_state_dict(
@@ -311,7 +321,7 @@ def get_args() -> argparse.Namespace:
         "--name",
         "-n",
         type=str,
-        default="model",
+        default="test",
         help="Name of the model, for saving and logging",
     )
 
@@ -319,7 +329,7 @@ def get_args() -> argparse.Namespace:
         "--epochs",
         "-e",
         type=int,
-        default=250,
+        default=2,
         help="Number of epochs",
     )
 
@@ -327,7 +337,7 @@ def get_args() -> argparse.Namespace:
         "--dataset",
         "-d",
         type=str,
-        default="BonnData",
+        default="Example",
         help="which dataset should be used for training",
     )
 
@@ -335,8 +345,8 @@ def get_args() -> argparse.Namespace:
         "--objective",
         "-o",
         type=str,
-        default="table",
-        help="objective of the model ('table', 'cell', 'row' or 'col')",
+        default="textlines",
+        help="objective of the model ('table', 'cell', 'row', 'col', 'textlines')",
     )
 
     parser.add_argument(
@@ -362,11 +372,11 @@ if __name__ == "__main__":
     if args.name == 'model':
         raise ValueError("Please enter a valid model name!")
 
-    if args.objective not in ['table', 'col', 'row', 'cell']:
+    if args.objective not in ['table', 'col', 'row', 'cell', 'textlines']:
         raise ValueError("Please enter a valid objective must be 'table', 'col', 'row' or 'cell'!")
 
-    if args.dataset not in ['BonnData', 'GloSAT']:
-        raise ValueError("Please enter a valid dataset must be 'BonnData' or 'GloSAT'!")
+    if args.dataset not in ['BonnData', 'GloSAT', 'Newspaper']:
+        raise ValueError("Please enter a valid dataset must be 'BonnData', 'GloSAT' or 'Newspaper!")
 
     if args.epochs <= 0:
         raise ValueError("Please enter a valid number of epochs must be >= 0!")
@@ -400,20 +410,36 @@ if __name__ == "__main__":
             transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.1),
             transforms.RandomGrayscale(p=0.1))
 
-    traindataset = CustomDataset(
-        f"{Path(__file__).parent.absolute()}/../../data/{args.dataset}/train/",
-        args.objective,
-        transforms=transform,
-    )
+    if args.objective == 'textlines':
+        traindataset: Dataset = NewspaperDataset(
+            f"{Path(__file__).parent.absolute()}/../../data/{args.dataset}/train/",
+            transformation=transform,
+        )
 
-    validdataset = CustomDataset(
-        f"{Path(__file__).parent.absolute()}/../../data/{args.dataset}/valid/", args.objective
-    )
+        validdataset: Dataset = NewspaperDataset(
+            f"{Path(__file__).parent.absolute()}/../../data/{args.dataset}/valid/"
+        )
+    else:
+        traindataset = TableDataset(
+            f"{Path(__file__).parent.absolute()}/../../data/{args.dataset}/train/",
+            args.objective,
+            transforms=transform
+        )
+
+        validdataset = TableDataset(
+            f"{Path(__file__).parent.absolute()}/../../data/{args.dataset}/valid/",
+            args.objective
+        )
 
     print(f"{len(traindataset)=}")
     print(f"{len(validdataset)=}")
 
     optimizer = AdamW(model.parameters(), lr=LR)
 
-    trainer = Trainer(model, traindataset, validdataset, optimizer, name)
+    trainer = Trainer(model,
+                      traindataset,
+                      validdataset,
+                      optimizer,
+                      name,
+                      mask_prediction=args.objective == 'textlines')
     trainer.train(args.epochs)

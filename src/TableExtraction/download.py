@@ -56,13 +56,14 @@ def download_pubtables() -> None:
 
     for file in files:
         print(f"downloading {file} ...")
-        url = f"https://huggingface.co/datasets/bsmock/pubtables-1m/resolve/main/{file}?download=true"
+        url = (f"https://huggingface.co/datasets/bsmock/pubtables-1m/"
+               f"resolve/main/{file}?download=true")
         request.urlretrieve(url, target + file)
 
         # extract zip file
         os.makedirs(target + file[:-7], exist_ok=True)
         with gzip.open(target + file, 'rb') as f_in:
-            with tarfile.open(fileobj=f_in, mode='r') as tar:
+            with tarfile.open(fileobj=f_in, mode='r') as tar:   # type: ignore
                 tar.extractall(path=target + file[:-7])
 
         # remove zip file

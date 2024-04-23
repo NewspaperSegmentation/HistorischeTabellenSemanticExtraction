@@ -1,4 +1,4 @@
-"""Dataset Class for training."""
+"""Newspaper Class for training."""
 
 import glob
 import os
@@ -12,11 +12,11 @@ from torch.utils.data import Dataset
 
 
 class CustomDataset(Dataset):   # type: ignore
-    """Dataset Class for training."""
+    """Newspaper Class for training."""
 
     def __init__(self, path: str, objective: str, transforms: Optional[Module] = None) -> None:
         """
-        Dataset Class for training.
+        Newspaper Class for training.
 
         Args:
             path: path to folder with images

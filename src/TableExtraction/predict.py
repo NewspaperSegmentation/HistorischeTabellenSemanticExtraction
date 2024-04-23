@@ -1,16 +1,31 @@
+"""Prediction for a single image."""
+
 import argparse
 from pathlib import Path
+from typing import Union
 
 import matplotlib.pyplot as plt
 import torch
-from torchvision.models.detection import FasterRCNN
+from skimage import io
+from torchvision.models.detection import FasterRCNN, MaskRCNN
 
 from src.TableExtraction.postprocessing import postprocess
 from src.TableExtraction.trainer import get_model
-from src.TableExtraction.utils.utils import get_image
+from src.TableExtraction.utils.utils import draw_prediction
 
 
-def predict(model: FasterRCNN, image: torch.Tensor):
+def predict(model: Union[FasterRCNN, MaskRCNN], image: torch.Tensor):
+    """
+    Predicts image with given model.
+
+    Args:
+        model: Model to use for prediction
+        image: image to predict
+
+    Returns:
+        Dictionary with prediction ('bounding boxes', 'scores' and ('masks'))
+        and a visualisation of the prediction
+    """
     if torch.cuda.is_available():
         device = torch.device("cuda:0")
     else:
@@ -20,13 +35,13 @@ def predict(model: FasterRCNN, image: torch.Tensor):
     model.eval()
 
     image = image.to(device)
-    output = model([image])
-    output = {k: v.detach().cpu() for k, v in output[0].items()}
-    output = postprocess(output)
+    pred = model([image])
+    pred = {k: v.detach().cpu() for k, v in pred[0].items()}
+    pred = postprocess(pred, method='iom', threshold=.6)
 
-    result = get_image(image.detach().cpu(), output)
+    result = draw_prediction(image.detach().cpu(), pred)
 
-    return output, result
+    return pred, result
 
 
 def get_args() -> argparse.Namespace:
@@ -52,23 +67,17 @@ def get_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    from src.TableExtraction.utils.post_utils import row_col_estimate
-
     args = get_args()
     print(args)
 
     model = get_model(args.objective, args.model)
 
-    image = torch.load((f"{Path(__file__).parent.absolute()}/../../data/BonnData/valid/"
-                        f"I_HA_Rep_89_Nr_16160_0212/I_HA_Rep_89_Nr_16160_0212_table_0.pt")) / 256
-
+    path = (f"{Path(__file__).parent.absolute()}/../../data/Newspaper/valid/"
+            f"Koelnische Zeitung 1866.06-1866.09 - 0179/region_10/image.jpg")
+    image = torch.tensor(io.imread(path)).permute(2, 0, 1).float()
     print(f"{image.shape=}")
 
-    output, result = predict(model, image)
+    pred, visualisation = predict(model, image)
 
-    cols, rows = row_col_estimate(output["boxes"])
-
-    plt.imshow(result.permute(1, 2, 0))
-    plt.vlines(x=rows, ymin=0, ymax=result.shape[1], colors='red', linestyles='-', linewidth=.5)
-    plt.hlines(y=cols, xmin=0, xmax=result.shape[2], colors='red', linestyles='-', linewidth=.5)
-    plt.show()
+    plt.imshow(visualisation.permute(1, 2, 0))
+    plt.savefig('../../data/MaskRCNNPredictionExample4.png', dpi=1000)

@@ -32,14 +32,16 @@ def split_dataset(folder: str, split: Tuple[float, float, float]) -> None:
     Splits the dataset into training, validation and test split.
 
     Args:
-        folder: folder with preprocessed dataset
+        folder: folder with train dataset
         split: Tuple with partitions of splits (should sum up to 1)
     """
     # seed the process for reproducibility
     random.seed(42)
 
-    # get folder with datapoints form preprocessed dataset
-    files = glob.glob(f"{folder}/*")
+    # get folder with datapoints form train dataset
+    files = [x for x in glob.glob(f"{folder}/*")]
+    print(f"{folder}/*")
+    print(f"{len(files)=}")
 
     # shuffle
     shuffled_list = random.sample(files, len(files))
@@ -73,6 +75,9 @@ def get_args() -> argparse.Namespace:
     parser.add_argument('--GloSAT', action=argparse.BooleanOptionalAction)
     parser.set_defaults(GloSAT=False)
 
+    parser.add_argument('--Newspaper', action=argparse.BooleanOptionalAction)
+    parser.set_defaults(Newspaper=False)
+
     return parser.parse_args()
 
 
@@ -80,15 +85,20 @@ if __name__ == "__main__":
     args = get_args()
 
     # check args
-    if not args.BonnData and not args.GloSAT:
-        raise ValueError("Please enter a valid dataset must be '--BonnData' or '--GloSAT'!")
+    if not args.BonnData and not args.GloSAT and not args.Newspaper:
+        raise ValueError("Please enter a valid dataset must be "
+                         "'--BonnData', '--GloSAT' or '--Example'!")
 
     if args.BonnData:
         split_dataset(f"{Path(__file__).parent.absolute()}/../../data/BonnData/"
-                      f"preprocessed/",
+                      f"train/",
                       (0.8, 0.1, 0.1))
 
     if args.GloSAT:
         split_dataset(f"{Path(__file__).parent.absolute()}/../../data/GloSAT/"
-                      f"preprocessed/",
+                      f"train/",
+                      (0.8, 0.1, 0.1))
+
+    if args.Newspaper:
+        split_dataset(f"{Path(__file__).parent.absolute()}/../../data/Newspaper/preprocessed",
                       (0.8, 0.1, 0.1))

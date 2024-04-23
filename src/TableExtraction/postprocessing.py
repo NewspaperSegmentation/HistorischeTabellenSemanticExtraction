@@ -1,18 +1,47 @@
+"""Postprocessing for R-CNN prediction."""
+
 from typing import Dict
 
 import torch
 from torchvision.ops.boxes import box_area, _box_inter_union
+from skimage.measure import regionprops
+
+
+def finetune_bboxes(masks: torch.Tensor, threshold=.5) -> torch.Tensor:
+    """
+    Calculates bounding boxes form the masks.
+
+    Args:
+        masks: tensor with all the predicted masks
+        threshold: threshold for mask binarisation
+
+    Returns:
+        new bounding boxes
+    """
+    masks = (masks > threshold).to(int).numpy()
+    new_bboxes = torch.zeros((len(masks), 4))
+    for i, mask in enumerate(masks):
+        new_bboxes[i] = torch.tensor(list(regionprops(mask[0])[0].bbox))[torch.tensor([1, 0, 3, 2])]
+    return new_bboxes
 
 
 def postprocess(prediction: Dict[str, torch.Tensor],
                 threshold: float = 0.5,
-                method: str = 'iom') -> Dict[str, torch.Tensor]:
+                method: str = 'iou') -> Dict[str, torch.Tensor]:
     """
-    Postprocesses the predicted boxes using a non maxima suppression for overlapping boxes
-    :param prediction: output of the model
-    :param threshold: threshold for overlap
-    :param method:
-    :return: boxes
+    Postprocesses the predicted boxes using a non maxima suppression for overlapping boxes.
+
+    Args:
+        prediction: output of the model
+        threshold: threshold for overlap
+        method: method to reduce bounding boxes can be non maxima suppression with 'iou'
+                and Intersection over minmum ('iom')
+
+    Raises:
+        NameError: if given method is not 'iou' or 'iom'.
+
+    Returns:
+        Dictionary with reduced predictions
     """
     if method not in ('iou', 'iom'):
         raise NameError(f"Method must be one of 'iou' or 'iom', got {method}!")
@@ -20,11 +49,14 @@ def postprocess(prediction: Dict[str, torch.Tensor],
     boxes = prediction['boxes']
     scores = prediction['scores']
 
+    if 'masks' in prediction.keys():
+        boxes = finetune_bboxes(prediction['masks'])
+
     # calc matrix of intersection depending on method
     inter, union = _box_inter_union(boxes, boxes)
     area = box_area(prediction['boxes'])
     min_matrix = torch.min(area.unsqueeze(1), area.unsqueeze(0))
-    matrix: torch.Tensor = inter / min_matrix if method == 'iom' else inter/ union
+    matrix: torch.Tensor = inter / min_matrix if method == 'iom' else inter / union
     matrix.fill_diagonal_(0)
 
     # indices of intersections over threshold
@@ -36,10 +68,13 @@ def postprocess(prediction: Dict[str, torch.Tensor],
     keep_indices = torch.tensor(list(set(range(len(scores))) - set(drop_indices.tolist())))
 
     # remove non maxima
-    boxes = prediction['boxes'][keep_indices]
-    scores = prediction['scores'][keep_indices]
+    reduced_prediction = {}
+    reduced_prediction['boxes'] = boxes[keep_indices]
+    reduced_prediction['scores'] = scores[keep_indices]
+    if 'masks' in prediction.keys():
+        reduced_prediction['masks'] = prediction['masks'][keep_indices]
 
-    return {'boxes': boxes, 'scores': scores}
+    return reduced_prediction
 
 
 if __name__ == '__main__':
@@ -59,6 +94,7 @@ if __name__ == '__main__':
     original_indices = indices[torch.arange(len(indices)), min_index]
 
     # Get positions not in original_indices
-    not_in_original_indices = torch.tensor(list(set(range(len(vector))) - set(original_indices.tolist())))
+    not_in_original_indices = torch.tensor(list(set(range(len(vector))) -
+                                                set(original_indices.tolist())))
 
     print("Positions of the vector not in original_indices:", not_in_original_indices)

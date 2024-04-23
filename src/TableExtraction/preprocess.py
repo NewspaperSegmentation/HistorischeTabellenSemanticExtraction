@@ -254,7 +254,7 @@ def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool 
     """
     Main function for preprocessing the datasets.
 
-    Takes the folder of a dataset and preprocesses it, then saves preprocessed images and files
+    Takes the folder of a dataset and preprocesses it, then saves train images and files
     with bounding boxes.
 
     table.pt: file with bounding boxes of tables
@@ -268,7 +268,7 @@ def main(datafolder: str, imgfolder: str, targetfolder: str, ignore_empty: bool 
     Args:
         datafolder: path to folder containing raw annotations
         imgfolder: path to folder containing raw images
-        targetfolder: folder to save preprocessed dataset
+        targetfolder: folder to save train dataset
         ignore_empty: if true images with no annotated tables are ignored
 
     """
@@ -318,7 +318,7 @@ if __name__ == "__main__":
             imgfolder=f"{Path(__file__).parent.absolute()}/../../data/"
                       f"BonnData/images",
             targetfolder=f"{Path(__file__).parent.absolute()}/../../data/"
-                         f"BonnData/preprocessed",
+                         f"BonnData/train",
         )
 
     if glosat:
@@ -328,7 +328,7 @@ if __name__ == "__main__":
             imgfolder=f"{Path(__file__).parent.absolute()}/../../data/"
                       f"GloSAT/datasets/Train/JPEGImages",
             targetfolder=f"{Path(__file__).parent.absolute()}/../../data/"
-                         f"GloSAT/preprocessed",
+                         f"GloSAT/train",
         )
 
         main(
@@ -337,5 +337,5 @@ if __name__ == "__main__":
             imgfolder=f"{Path(__file__).parent.absolute()}/../../data/"
                       f"GloSAT/datasets/Test/JPEGImages",
             targetfolder=f"{Path(__file__).parent.absolute()}/../../data/"
-                         f"GloSAT/preprocessed",
+                         f"GloSAT/train",
         )
