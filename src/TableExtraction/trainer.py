@@ -54,7 +54,7 @@ class Trainer:
         """
         self.device = (
             torch.device(f"cuda:{cuda}")
-            if torch.cuda.is_available()
+            if torch.cuda.is_available() and cuda >= 0
             else torch.device("cpu")
         )
         print(f"using {self.device}")
@@ -64,10 +64,10 @@ class Trainer:
         self.mask_prediction = mask_prediction
 
         self.trainloader = DataLoader(
-            traindataset, batch_size=1, shuffle=True, num_workers=6
+            traindataset, batch_size=1, shuffle=True, num_workers=14
         )
         self.testloader = DataLoader(
-            testdataset, batch_size=1, shuffle=False, num_workers=6
+            testdataset, batch_size=1, shuffle=False, num_workers=14
         )
 
         self.bestavrgloss: Union[float, None] = None
@@ -79,7 +79,7 @@ class Trainer:
         print(f"{train_log_dir=}")
         self.writer = SummaryWriter(train_log_dir)  # type: ignore
 
-        self.example_image, self.example_target = testdataset[2]
+        self.example_image, self.example_target = testdataset[1]
         self.train_example_image, self.train_example_target = traindataset[2]
 
     def save(self, name: str = "") -> None:
@@ -133,6 +133,7 @@ class Trainer:
         loss_box_reg_lst = []
         loss_objectness_lst = []
         loss_rpn_box_reg_lst = []
+        loss_masks_lst = []
 
         for img, target in tqdm(self.trainloader, desc="training"):
             img = img.to(self.device)
@@ -152,39 +153,20 @@ class Trainer:
             loss_classifier_lst.append(output["loss_classifier"].detach().cpu().item())
             loss_box_reg_lst.append(output["loss_box_reg"].detach().cpu().item())
             loss_objectness_lst.append(output["loss_objectness"].detach().cpu().item())
-            loss_rpn_box_reg_lst.append(
-                output["loss_rpn_box_reg"].detach().cpu().item()
-            )
+            loss_rpn_box_reg_lst.append(output["loss_rpn_box_reg"].detach().cpu().item())
+            if self.mask_prediction:
+                loss_masks_lst.append(output["loss_mask"].detach().cpu().item())
 
             del img, target, output, loss
 
-        # logging
-        self.writer.add_scalar(
-            "Training/loss",
-            np.mean(loss_lst),
-            global_step=self.epoch
-        )  # type: ignore
-        self.writer.add_scalar(
-            "Training/loss_classifier",
-            np.mean(loss_classifier_lst),
-            global_step=self.epoch,
-        )  # type: ignore
-        self.writer.add_scalar(
-            "Training/loss_box_reg",
-            np.mean(loss_box_reg_lst),
-            global_step=self.epoch
-        )  # type: ignore
-        self.writer.add_scalar(
-            "Training/loss_objectness",
-            np.mean(loss_objectness_lst),
-            global_step=self.epoch,
-        )  # type: ignore
-        self.writer.add_scalar(
-            "Training/loss_rpn_box_reg",
-            np.mean(loss_rpn_box_reg_lst),
-            global_step=self.epoch,
-        )  # type: ignore
-        self.writer.flush()  # type: ignore
+        self.log_loss('Training',
+                      loss=np.mean(loss_lst),
+                      loss_classifier=np.mean(loss_classifier_lst),
+                      loss_box_reg=np.mean(loss_box_reg_lst),
+                      loss_objectness=np.mean(loss_objectness_lst),
+                      loss_rpn_box_reg=np.mean(loss_rpn_box_reg_lst),
+                      loss_masks=np.mean(loss_masks_lst)
+                      )
 
         del (
             loss_lst,
@@ -192,6 +174,7 @@ class Trainer:
             loss_box_reg_lst,
             loss_objectness_lst,
             loss_rpn_box_reg_lst,
+            loss_masks_lst
         )
 
     def valid(self) -> float:
@@ -202,10 +185,11 @@ class Trainer:
             current loss
         """
         loss = []
-        loss_classifier = []
-        loss_box_reg = []
-        loss_objectness = []
-        loss_rpn_box_reg = []
+        loss_classifier_lst = []
+        loss_box_reg_lst = []
+        loss_objectness_lst = []
+        loss_rpn_box_reg_lst = []
+        loss_masks_lst = []
 
         for img, target in tqdm(self.testloader, desc="validation"):
             img = img.to(self.device)
@@ -218,64 +202,118 @@ class Trainer:
             output = self.model([img[0]], [target])
 
             loss.append(sum(v for v in output.values()).cpu().detach())
-            loss_classifier.append(output["loss_classifier"].detach().cpu().item())
-            loss_box_reg.append(output["loss_box_reg"].detach().cpu().item())
-            loss_objectness.append(output["loss_objectness"].detach().cpu().item())
-            loss_rpn_box_reg.append(output["loss_rpn_box_reg"].detach().cpu().item())
+            loss_classifier_lst.append(output["loss_classifier"].detach().cpu().item())
+            loss_box_reg_lst.append(output["loss_box_reg"].detach().cpu().item())
+            loss_objectness_lst.append(output["loss_objectness"].detach().cpu().item())
+            loss_rpn_box_reg_lst.append(output["loss_rpn_box_reg"].detach().cpu().item())
+            if self.mask_prediction:
+                loss_masks_lst.append(output["loss_mask"].detach().cpu().item())
 
             del img, target, output
 
-        meanloss = np.mean(loss)
+        self.log_loss('Valid',
+                      loss=np.mean(loss),
+                      loss_classifier=np.mean(loss_classifier_lst),
+                      loss_box_reg=np.mean(loss_box_reg_lst),
+                      loss_objectness=np.mean(loss_objectness_lst),
+                      loss_rpn_box_reg=np.mean(loss_rpn_box_reg_lst),
+                      loss_masks=np.mean(loss_masks_lst)
+                      )
 
-        # logging
-        self.writer.add_scalar(
-            "Valid/loss",
-            meanloss,
-            global_step=self.epoch
-        )  # type: ignore
-        self.writer.add_scalar(
-            "Valid/loss_classifier",
-            np.mean(loss_classifier),
-            global_step=self.epoch
-        )  # type: ignore
-        self.writer.add_scalar(
-            "Valid/loss_box_reg",
-            np.mean(loss_box_reg),
-            global_step=self.epoch
-        )  # type: ignore
-        self.writer.add_scalar(
-            "Valid/loss_objectness",
-            np.mean(loss_objectness),
-            global_step=self.epoch
-        )  # type: ignore
-        self.writer.add_scalar(
-            "Valid/loss_rpn_box_reg",
-            np.mean(loss_rpn_box_reg),
-            global_step=self.epoch
-        )  # type: ignore
-        self.writer.flush()  # type: ignore
+        self.log_examples('Training')
+        self.log_examples('Valid')
 
+        return np.mean(loss)
+
+    def log_examples(self, dataset: str):
+        """Predicts and logs a example image form the training- and from the validation set."""
         self.model.eval()
 
-        # predict example form training set
-        pred = self.model([self.train_example_image.to(self.device)])
-        pred = postprocess(pred)
-        result = draw_prediction(self.train_example_image, pred[0])
-        self.writer.add_image(
-            "Training/example", result[:, ::2, ::2], global_step=self.epoch
-        )  # type: ignore
+        example = self.train_example_image if dataset == 'Training' else self.example_image
 
-        # predict example form validation set
-        pred = self.model([self.example_image.to(self.device)])
-        pred = postprocess(pred)
-        result = draw_prediction(self.example_image, pred[0])
+        # predict example form training set
+        pred = self.model([example.to(self.device)])[0]
+
+        # move predictions to cpu
+        pred["boxes"] = pred["boxes"].detach().cpu()
+        pred["labels"] = pred["labels"].detach().cpu()
+        pred["scores"] = pred["scores"].detach().cpu()
+
+        if self.mask_prediction:
+            pred["masks"] = pred["masks"].detach().cpu()
+
+        # postprecess image (non maxima supression)
+        pred = postprocess(pred, method='iom', threshold=.6)
+
+        # draw image and log it to tensorboard
+        result = draw_prediction(example, pred)
         self.writer.add_image(
-            "Valid/example", result[:, ::2, ::2], global_step=self.epoch
+            f"{dataset}/example",
+            result[:, ::2, ::2],
+            global_step=self.epoch
         )  # type: ignore
 
         self.model.train()
 
-        return meanloss
+    def log_loss(self, dataset: str,
+                 loss: float,
+                 loss_classifier: float,
+                 loss_box_reg: float,
+                 loss_objectness: float,
+                 loss_rpn_box_reg: float,
+                 loss_masks: float
+                 ):
+        """
+        Logs the loss values to tensorboard.
+
+        Args:
+            dataset: Name of the dataset the loss comes from ('Training' or 'Valid')
+            loss: average over all loss
+            loss_classifier: average classifier loss
+            loss_box_reg: average box regression loss loss
+            loss_objectness: average objectiveness loss
+            loss_rpn_box_reg: average rpn box regression loss
+            loss_masks: average masking loss
+        """
+        # logging
+        self.writer.add_scalar(
+            f"{dataset}/loss",
+            loss,
+            global_step=self.epoch
+        )  # type: ignore
+
+        self.writer.add_scalar(
+            f"{dataset}/loss_classifier",
+            loss_classifier,
+            global_step=self.epoch
+        )  # type: ignore
+
+        self.writer.add_scalar(
+            f"{dataset}/loss_box_reg",
+            loss_box_reg,
+            global_step=self.epoch
+        )  # type: ignore
+
+        self.writer.add_scalar(
+            f"{dataset}/loss_objectness",
+            loss_objectness,
+            global_step=self.epoch
+        )  # type: ignore
+
+        self.writer.add_scalar(
+            f"{dataset}/loss_rpn_box_reg",
+            loss_rpn_box_reg,
+            global_step=self.epoch
+        )  # type: ignore
+
+        if self.mask_prediction:
+            self.writer.add_scalar(
+                f"{dataset}/loss_masks",
+                loss_masks,
+                global_step=self.epoch
+            )  # type: ignore
+
+        self.writer.flush()  # type: ignore
 
 
 def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
@@ -357,6 +395,14 @@ def get_args() -> argparse.Namespace:
         help="name of a model to load",
     )
 
+    parser.add_argument(
+        "--cuda",
+        "-c",
+        type=int,
+        default=-1,
+        help="number of the cuda device (use -1 for cpu)",
+    )
+
     parser.add_argument('--augmentations', "-a", action=argparse.BooleanOptionalAction)
     parser.set_defaults(augmentations=False)
 
@@ -381,12 +427,13 @@ if __name__ == "__main__":
     if args.epochs <= 0:
         raise ValueError("Please enter a valid number of epochs must be >= 0!")
 
-    print('start training:')
-    print(f"\tname: {args.name}")
-    print(f"\tobjective: {args.objective}")
-    print(f"\tdataset: {args.dataset}")
-    print(f"\tepochs: {args.epochs}")
-    print(f"\tload: {args.load}\n")
+    print(f'start training:\n'
+          f'\tname: {args.name}\n'
+          f'\tobjective: {args.objective}\n'
+          f'\tdataset: {args.dataset}\n'
+          f'\tepochs: {args.epochs}\n'
+          f'\tload: {args.load}\n'
+          f'\tcuda: {args.cuda}\n')
 
     name = (f"{args.name}_{args.dataset}_{args.objective}"
             f"{'_aug' if args.augmentations else ''}_e{args.epochs}")
@@ -441,5 +488,6 @@ if __name__ == "__main__":
                       validdataset,
                       optimizer,
                       name,
-                      mask_prediction=args.objective == 'textlines')
+                      mask_prediction=args.objective == 'textlines',
+                      cuda=args.cuda)
     trainer.train(args.epochs)
