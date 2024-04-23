@@ -66,6 +66,7 @@ def postprocess(prediction: Dict[str, torch.Tensor],
     values = scores[indices]
     drop_indices = indices[torch.arange(len(indices)), torch.argmin(values, dim=1)]
     keep_indices = torch.tensor(list(set(range(len(scores))) - set(drop_indices.tolist())))
+    keep_indices = keep_indices.to(int)
 
     # remove non maxima
     reduced_prediction = {}
