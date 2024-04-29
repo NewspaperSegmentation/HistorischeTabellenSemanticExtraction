@@ -15,7 +15,7 @@ from torchvision.models.detection import (
     maskrcnn_resnet50_fpn,
     MaskRCNN_ResNet50_FPN_Weights,
     FasterRCNN_ResNet50_FPN_Weights,
-    fasterrcnn_resnet50_fpn,
+    fasterrcnn_resnet50_fpn, MaskRCNN,
 )
 from tqdm import tqdm
 
@@ -79,8 +79,8 @@ class Trainer:
         print(f"{train_log_dir=}")
         self.writer = SummaryWriter(train_log_dir)  # type: ignore
 
-        self.example_image, self.example_target = testdataset[1]
-        self.train_example_image, self.train_example_target = traindataset[2]
+        self.example_image, self.example_target = testdataset[0]
+        self.train_example_image, self.train_example_target = traindataset[3]
 
     def save(self, name: str = "") -> None:
         """
@@ -316,7 +316,7 @@ class Trainer:
         self.writer.flush()  # type: ignore
 
 
-def get_model(objective: str, load_weights: Optional[str] = None) -> FasterRCNN:
+def get_model(objective: str, load_weights: Optional[str] = None) -> Union[MaskRCNN, FasterRCNN]:
     """
     Creates a FasterRCNN model for training, using the specified objective parameter.
 

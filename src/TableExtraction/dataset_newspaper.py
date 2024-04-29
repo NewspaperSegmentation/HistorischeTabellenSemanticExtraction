@@ -76,10 +76,10 @@ class CustomDataset(Dataset):  # type: ignore
 
 if __name__ == "__main__":
     from pprint import pprint
-    dataset = CustomDataset('../../data/Newspaper/train')
+    dataset = CustomDataset('../../data/Newspaper/valid')
     print(len(dataset))
 
-    image, target = dataset[1]
+    image, target = dataset[0]
     print(f"{image.shape=}")
     pprint(target)
     example = draw_prediction(image, target)

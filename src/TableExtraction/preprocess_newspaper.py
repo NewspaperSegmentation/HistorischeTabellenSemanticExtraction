@@ -2,16 +2,19 @@
 
 import glob
 import os
-from typing import List, Dict, Union
+from pathlib import Path
+from typing import List, Dict, Union, Tuple
 
 import torch
 from torchvision import transforms
-from PIL import Image, ImageOps
-from bs4 import BeautifulSoup
+import numpy as np
+from PIL import Image, ImageOps, ImageDraw
+from bs4 import BeautifulSoup, PageElement
 from matplotlib import pyplot as plt
 from matplotlib.patches import Polygon, Rectangle
 from skimage import io
 from tqdm import tqdm
+import re
 
 from src.TableExtraction.utils.utils import get_bbox
 
@@ -33,6 +36,45 @@ def is_valid(box: torch.Tensor):
     return True
 
 
+def draw_baseline_target(shape: Tuple[int, int],
+                         baselines: List[torch.Tensor],
+                         width: int = 3) -> np.ndarray:
+    """
+    Draw baseline target for given shape.
+
+    Args:
+        shape: shape of image
+        baselines: list of baselines
+        width: width of the drawn baselines
+    """
+    # Create a blank image filled with ones (white)
+    image = np.zeros(shape, dtype=np.uint8)
+    image = Image.fromarray(image)
+
+    # Draw the baselines
+    draw = ImageDraw.Draw(image)
+    for line in baselines:
+        draw.line([(x[1], x[0]) for x in line], fill=1, width=width)
+
+    return np.array(image)
+
+
+def get_tag(textregion: PageElement):
+    """
+    Returns the tag of the given textregion
+
+    Args:
+        textregion: PageElement of Textregion
+
+    Returns:
+        Given tag of that Textregion
+    """
+    desc = textregion['custom']
+    match = re.search(r"\{type:.*;\}", desc)
+    if match is None:
+        return 'UnknownRegion'
+    return match.group()[6:-2]
+
 def extract(xml_path: str) -> List[Dict[str, List[torch.Tensor]]]:
     """
     Extracts the annotation from the xml file.
@@ -53,6 +95,9 @@ def extract(xml_path: str) -> List[Dict[str, List[torch.Tensor]]]:
 
     text_regions = page.find_all('TextRegion')
     for region in text_regions:
+        if get_tag(region) not in ['heading', 'article_', 'caption', 'header', 'paragraph']:
+            continue
+
         coords = region.find('Coords')
         part = torch.tensor([tuple(map(int, point.split(','))) for
                              point in coords['points'].split()])[:, torch.tensor([1, 0])]
@@ -155,7 +200,7 @@ def rename_files(folder_path: str) -> None:
             print(f"Renamed {filename} to {new_filename}")
 
 
-def main(image_path: str, target_path: str, output_path: str) -> None:
+def main(image_path: str, target_path: str, output_path: str, create_baseline_target:bool) -> None:
     """
     Preprocesses the complete dataset so it can be used for training.
 
@@ -163,21 +208,25 @@ def main(image_path: str, target_path: str, output_path: str) -> None:
         image_path: path to images
         target_path: path to xml files
         output_path: path to save folder
+        create_baseline_target: if True creates targets for baseline UNet
     """
     to_tensor = transforms.PILToTensor()
 
     image_paths = [x for x in glob.glob(f"{image_path}/*.jpg")]
     target_paths = [f"{target_path}/{x.split(os.sep)[-1][:-4]}.xml" for x in image_paths]
 
-    print(image_paths)
-    print(target_paths)
+    print(f"{len(image_paths)=}")
+    print(f"{len(target_paths)=}")
 
     for img_path, tar_path in tqdm(zip(image_paths, target_paths),
                                    total=len(image_paths),
                                    desc='preprocessing'):
 
         document_name = img_path.split(os.sep)[-1][:-4]
-        os.makedirs(f"{output_path}/{document_name}/", exist_ok=True)
+        try:
+            os.makedirs(f"{output_path}/{document_name}/", exist_ok=False)
+        except OSError:
+            continue
         regions = extract(tar_path)
 
         image = Image.open(img_path)
@@ -203,8 +252,13 @@ def main(image_path: str, target_path: str, output_path: str) -> None:
             torch.save(region['bboxes'],
                        f"{output_path}/{document_name}/region_{i}/bboxes.pt")
 
+            if create_baseline_target:
+                target = draw_baseline_target(subimage.shape[:2], region['baselines'])
+                np.save(f"{output_path}/{document_name}/region_{i}/baselines.npy", target)
+
 
 if __name__ == "__main__":
-    main('../../data/Newspaper/newspaper-dataset-main-images/images',
-         '../../data/Newspaper/newspaper-dataset-main-annotations/annotations',
-         '../../data/Newspaper/preprocessed')
+    main(f'{Path(__file__).parent.absolute()}/../../data/newspaper-dataset-main-images/images',
+         f'{Path(__file__).parent.absolute()}/../../data/pero_lines_bonn_regions',
+         f'{Path(__file__).parent.absolute()}/../../data/Newspaper/preprocessed',
+         create_baseline_target=True)
