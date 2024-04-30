@@ -46,16 +46,23 @@ class CustomDataset(Dataset):  # type: ignore
         """
 
         image = torch.tensor(io.imread(f"{self.data[index]}/image.jpg")).permute(2, 0, 1) / 256
-        target = torch.tensor(np.load(f"{self.data[index]}/baselines.npy")).float()[None]
+        target = torch.tensor(np.load(f"{self.data[index]}/baselines.npz")['array']).float()[None]
 
+        # mask image
+        image = image * target[:, :, 4, None]
+        target = target[:, :, :4]
+
+        # pad image to ensure size is big enough for cropping
         width_pad = max(256 - image.shape[1], 0)
         height_pad = max(256 - image.shape[2], 0)
         image = F.pad(image, (0, height_pad, 0, width_pad))
         target = F.pad(target, (0, height_pad, 0, width_pad))
 
+        # crop image and target
         if self.cropping:
             image, target = self.crop(image, target)
 
+        # augement image
         if self.augmentations:
             image = self.augmentations(image)
 

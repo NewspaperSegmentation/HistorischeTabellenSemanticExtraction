@@ -8,6 +8,7 @@ from typing import Union
 import numpy as np
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torch.optim import AdamW, Optimizer
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter  # type: ignore
@@ -67,10 +68,12 @@ class Trainer:
 
         self.model = model.to(self.device)
         self.optimizer = optimizer
-        self.loss_fn = CELoss(weight=torch.tensor([0.001, 1.0]).to(self.device))
-        # DiceLoss(include_background=False,
-        #          to_onehot_y=True,
-        #          softmax=True)
+        self.loss_fn = DiceLoss(include_background=False,
+                                to_onehot_y=True,
+                                softmax=False,
+                                sigmoid=True)
+
+        # CELoss(weight=torch.tensor([0.001, 1.0]).to(self.device))
 
         self.trainloader = DataLoader(
             traindataset, batch_size=32, shuffle=True, num_workers=8
@@ -165,6 +168,11 @@ class Trainer:
             current loss
         """
         loss_lst = []
+        baseline_loss_lst = []
+        ascender_loss_lst = []
+        descender_loss_lst = []
+        limits_loss_lst = []
+
 
         for images, targets in tqdm(self.testloader, desc="validation"):
             images = images.to(self.device)
@@ -173,12 +181,32 @@ class Trainer:
             self.optimizer.zero_grad()
             output = model(images)
             loss = self.loss_fn(output, targets)
+            baseline_loss = self.loss_fn(output[:, :, :, 0], targets[:, :, :, 0])
+            ascender_loss = self.loss_fn(output[:, :, :, 1], targets[:, :, :, 1])
+            descender_loss = self.loss_fn(output[:, :, :, 2], targets[:, :, :, 2])
+            limits_loss = self.loss_fn(output[:, :, :, 3], targets[:, :, :, 3])
 
             loss_lst.append(loss.cpu().detach())
+            loss_lst.append(baseline_loss.cpu().detach())
+            loss_lst.append(ascender_loss.cpu().detach())
+            loss_lst.append(descender_loss.cpu().detach())
+            loss_lst.append(limits_loss.cpu().detach())
 
-            del images, targets, output, loss
+            del (images,
+                 targets,
+                 output,
+                 loss,
+                 baseline_loss,
+                 ascender_loss,
+                 descender_loss,
+                 limits_loss)
 
-        self.log_loss('Valid', loss=np.mean(loss_lst))
+        self.log_loss('Valid',
+                      loss=np.mean(loss_lst),
+                      baseline_loss=np.mean(baseline_loss_lst),
+                      ascender_loss=np.mean(ascender_loss_lst),
+                      descender_loss=np.mean(descender_loss_lst),
+                      limits_loss=np.mean(limits_loss_lst))
 
         self.log_examples('Training')
         self.log_examples('Valid')
@@ -194,21 +222,31 @@ class Trainer:
         # predict example form training set
         pred = self.model(example[None].to(self.device))
 
-        result = draw_segmentation_masks(image=example,
-                                         masks=pred[0, 1] > 0.5,
-                                         alpha=0.5,
-                                         colors='red')
+        # result = draw_segmentation_masks(image=example,
+        #                                  masks=pred[0, 1] > 0.5,
+        #                                  alpha=0.5,
+        #                                  colors='red')
 
-        # log in tensorboard
-        self.writer.add_image(
-            f"{dataset}/example",
-            result[:, ::2, ::2],
-            global_step=self.epoch
-        )  # type: ignore
+        pred = F.sigmoid(pred)
+
+        self.log_image(baselines=pred[:, :, 0],
+                       )
 
         self.model.train()
 
-    def log_loss(self, dataset: str, loss: float):
+    def log_image(self, dataset: str, **kwargs):
+
+        for key, image in kwargs.items():
+            # log in tensorboard
+            self.writer.add_image(
+                f"{dataset}/{key}",
+                image[:, ::2, ::2],
+                global_step=self.epoch
+            )  # type: ignore
+
+        self.writer.flush()  # type: ignore
+
+    def log_loss(self, dataset: str, **kwargs):
         """
         Logs the loss values to tensorboard.
 
@@ -218,11 +256,12 @@ class Trainer:
 
         """
         # logging
-        self.writer.add_scalar(
-            f"{dataset}/loss",
-            loss,
-            global_step=self.epoch
-        )  # type: ignore
+        for key, value in kwargs.items():
+            self.writer.add_scalar(
+                f"{dataset}/{key}",
+                value,
+                global_step=self.epoch
+            )  # type: ignore
 
         self.writer.flush()  # type: ignore
 
@@ -289,7 +328,7 @@ if __name__ == "__main__":
 
     name = (f"{args.name}_baseline"
             f"{'_aug' if args.augmentations else ''}_e{args.epochs}")
-    model = BasicUNet(spatial_dims=2, in_channels=3, out_channels=2)
+    model = BasicUNet(spatial_dims=2, in_channels=3, out_channels=4)
 
     transform = None
     if args.augmentations:

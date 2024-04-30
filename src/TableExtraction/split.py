@@ -60,9 +60,9 @@ def split_dataset(folder: str, split: Tuple[float, float, float]) -> None:
     print(f"{len(test)=}")
 
     # copy data in 3 new folder
-    copy(folder, train, "train")
-    copy(folder, valid, "valid")
-    copy(folder, test, "test")
+    copy(folder, train, "train_pero")
+    copy(folder, valid, "valid_pero")
+    copy(folder, test, "test_pero")
 
 
 def get_args() -> argparse.Namespace:
