@@ -1,6 +1,8 @@
 """Newspaper Class for newspaper mask R-CNN."""
 
+import os
 import glob
+from pathlib import Path
 from typing import Tuple
 
 import numpy as np
@@ -28,7 +30,8 @@ class CustomDataset(Dataset):  # type: ignore
             transformation: torchvision transforms for on-the-fly augmentations
         """
         super().__init__()
-        self.data = [x for x in glob.glob(f"{path}/*/*")]
+        self.path = path
+        self.data = [x.split(os.sep)[-1] for x in glob.glob(f"{path}/*")]
         self.cropping = cropping
         self.crop = RandomCropAndResize(size=(256, 256))
         self.augmentations = augmentations
@@ -45,24 +48,29 @@ class CustomDataset(Dataset):  # type: ignore
 
         """
 
-        image = torch.tensor(io.imread(f"{self.data[index]}/image.jpg")).permute(2, 0, 1) / 256
-        target = torch.tensor(np.load(f"{self.data[index]}/baselines.npz")['array']).float()[None]
-
+        image = torch.tensor(io.imread(f"{Path(__file__).parent.absolute()}/../../data/Newspaper/newspaper-dataset-main-images/images/{self.data[index]}.jpg")).permute(2, 0, 1) / 256
+        target = torch.tensor(np.load(f"{self.path}/{self.data[index]}/baselines.npz")['array']).permute(2, 0, 1).float()
+    
         # mask image
-        image = image * target[:, :, 4, None]
-        target = target[:, :, :4]
-
+        image = image * target[None, 4, :, :]
+        target = target[:4 :, : ]
+        
         # pad image to ensure size is big enough for cropping
         width_pad = max(256 - image.shape[1], 0)
         height_pad = max(256 - image.shape[2], 0)
         image = F.pad(image, (0, height_pad, 0, width_pad))
         target = F.pad(target, (0, height_pad, 0, width_pad))
+        
+        _, width, height = image.shape
+        resize = transforms.Resize((width // 2, height // 2))
+        image = resize(image)
+        target = F.max_pool2d(target, 2)
 
         # crop image and target
         if self.cropping:
             image, target = self.crop(image, target)
 
-        # augement image
+        # augment image
         if self.augmentations:
             image = self.augmentations(image)
 
@@ -85,14 +93,6 @@ class RandomCropAndResize(Module):
         self.size = size
 
     def __call__(self, image: torch.Tensor, target: torch.Tensor):
-
-        # _, width, height = image.shape
-        # kernel_size = np.random.choice([4])
-        # if kernel_size > 1:
-        #     resize = transforms.Resize((width // kernel_size, height // kernel_size))
-        #     image = resize(image)
-        #     target = F.max_pool2d(target, kernel_size)
-
         # Randomly crop the image and mask
         i, j, h, w = transforms.RandomCrop.get_params(image, output_size=self.size)
         image = transforms.functional.crop(image, i, j, h, w)

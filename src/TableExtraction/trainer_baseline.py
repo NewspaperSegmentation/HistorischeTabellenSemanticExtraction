@@ -23,6 +23,18 @@ from src.TableExtraction.dataset_baseline import CustomDataset as BaselineDatase
 LR = 0.00001
 
 
+class MultiTargetDiceLoss(nn.Module):
+    def __init__(self):
+        super(MultiTargetDiceLoss, self).__init__()
+        self.loss_fn = DiceLoss(sigmoid=True)
+
+    def forward(self, pred, target):
+        ascender_loss = self.loss_fn(pred[:, 0, None, :, :], target[:, 0, None, :, :])
+        descender_loss = self.loss_fn(pred[:, 1, None, :, :], target[:, 1, None, :, :])
+        baseline_loss = self.loss_fn(pred[:, 2, None, :, :], target[:, 2, None, :, :])
+        limits_loss = self.loss_fn(pred[:, 3, None, :, :], target[:, 3, None, :, :])
+        return baseline_loss, ascender_loss, descender_loss, limits_loss
+
 class CELoss(nn.Module):
     def __init__(self, weight: torch.Tensor):
         super(CELoss, self).__init__()
@@ -68,15 +80,10 @@ class Trainer:
 
         self.model = model.to(self.device)
         self.optimizer = optimizer
-        self.loss_fn = DiceLoss(include_background=False,
-                                to_onehot_y=True,
-                                softmax=False,
-                                sigmoid=True)
-
-        # CELoss(weight=torch.tensor([0.001, 1.0]).to(self.device))
+        self.loss_fn = MultiTargetDiceLoss()
 
         self.trainloader = DataLoader(
-            traindataset, batch_size=32, shuffle=True, num_workers=8
+            traindataset, batch_size=16, shuffle=True, num_workers=8
         )
         self.testloader = DataLoader(
             testdataset, batch_size=1, shuffle=False, num_workers=8
@@ -142,19 +149,20 @@ class Trainer:
         """Trains one epoch."""
         loss_lst = []
 
-        for images, targets in tqdm(self.trainloader, desc="training"):
+        for images, targets in tqdm(self.trainloader, desc="training"):            
             images = images.to(self.device)
             targets = targets.to(self.device)
 
             self.optimizer.zero_grad()
             output = model(images)
-            loss = self.loss_fn(output, targets)
+            losses = self.loss_fn(output, targets)
+            loss = sum(losses)
             loss.backward()
             self.optimizer.step()
 
             loss_lst.append(loss.detach().cpu().item())
 
-            del images, targets, output, loss
+            del images, targets, output, loss, losses
 
         self.log_loss('Training', loss=np.mean(loss_lst))
 
@@ -173,18 +181,16 @@ class Trainer:
         descender_loss_lst = []
         limits_loss_lst = []
 
-
         for images, targets in tqdm(self.testloader, desc="validation"):
+            
+            print(f"valid {images.shape=}")
             images = images.to(self.device)
             targets = targets.to(self.device)
 
             self.optimizer.zero_grad()
             output = model(images)
-            loss = self.loss_fn(output, targets)
-            baseline_loss = self.loss_fn(output[:, :, :, 0], targets[:, :, :, 0])
-            ascender_loss = self.loss_fn(output[:, :, :, 1], targets[:, :, :, 1])
-            descender_loss = self.loss_fn(output[:, :, :, 2], targets[:, :, :, 2])
-            limits_loss = self.loss_fn(output[:, :, :, 3], targets[:, :, :, 3])
+            baseline_loss, ascender_loss, descender_loss, limits_loss = self.loss_fn(output, targets)
+            loss = sum([baseline_loss, ascender_loss, descender_loss, limits_loss])
 
             loss_lst.append(loss.cpu().detach())
             loss_lst.append(baseline_loss.cpu().detach())
@@ -229,8 +235,11 @@ class Trainer:
 
         pred = F.sigmoid(pred)
 
-        self.log_image(baselines=pred[:, :, 0],
-                       )
+        self.log_image(dataset=dataset,
+                       ascenders=pred[:, :, 0],
+                       descenders=pred[:, :, 1],
+                       baselines=pred[:, :, 2],
+                       limits=pred[:, :, 3])
 
         self.model.train()
 
@@ -349,12 +358,12 @@ if __name__ == "__main__":
             transforms.RandomGrayscale(p=0.1))
 
     traindataset: Dataset = BaselineDataset(
-        f"{Path(__file__).parent.absolute()}/../../data/Newspaper/train/",
+        f"{Path(__file__).parent.absolute()}/../../data/Newspaper/train_pero/",
         augmentations=transform,
     )
 
     validdataset: Dataset = BaselineDataset(
-        f"{Path(__file__).parent.absolute()}/../../data/Newspaper/valid/",
+        f"{Path(__file__).parent.absolute()}/../../data/Newspaper/valid_pero/",
         cropping=False
     )
 
